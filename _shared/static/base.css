@@ -1,0 +1,542 @@
+/* base.css — the design system every practice app shares.
+   Dark by default, light on a toggle, remembered. No web fonts, no CDN.
+   One visual language so eighteen apps read as one product in a demo.
+
+   ---------------------------------------------------------------------------
+   RETHEMED AUGUST 2 2026 TO THE PRACTICE'S OWN BRAND.
+
+   Until now this was a blue house palette on cool blue-grey neutrals, chosen
+   before the practice had a name. It now has one — `Apex Operations & Advisory`
+   — with a mark, a website and a token set of its own, and the apps were the
+   only thing still wearing the old colours.
+
+   What changed and why it is not a matter of taste:
+
+     * **The accent is the brand green**, `#184E2F` on paper and `#8bd0a3` on
+       dark. Those are `--brand` from `growth/marketing/website/tokens.css`,
+       unchanged. No colour of any hue can clear 4.5:1 against both a white and
+       a near-black background — the ceiling is 4.26:1 — so the accent is
+       swapped per theme rather than held constant. That is what the website
+       already does; matching it is what makes the phone in a prospect's hand
+       and the site on their screen the same company.
+     * **The neutrals are green-tinted, not blue.** Every grey here now carries
+       a little of the accent's hue, the way the brand's do. A blue-grey chrome
+       around a green accent reads as two brands stacked, and it was the single
+       most visible reason the apps did not look like the website.
+     * **`--good` is a yellow-green, and deliberately not the brand green.**
+       The first cut of this retheme made them the same colour on the reasoning
+       that green already means go here. It read well and it was wrong — see
+       the note on the token itself for the six places it broke. `--warn` and
+       `--bad` are the site's own `--flag` and `--alarm`, unchanged.
+
+   The brand's own rule is *"one accent, and it is already chosen."* The six
+   function colours below are the deliberate exception, and the exception is
+   argued where it is made — see the function palette at the bottom of this
+   file. Everything else in the practice takes the single green.
+   --------------------------------------------------------------------------- */
+
+:root {
+  color-scheme: dark;
+
+  --bg:        #0b0e0a;
+  --bg-2:      #131612;
+  --bg-3:      #1e221d;
+  --bg-hover:  #262b25;
+  --line:      #292d28;
+  --line-soft: #1e221d;
+
+  --text:      #eeede8;
+  --text-2:    #acaba4;
+  --text-3:    #999892;
+
+  --accent:      #8bd0a3;
+  --accent-soft: rgba(139, 208, 163, 0.14);
+  --accent-line: rgba(139, 208, 163, 0.42);
+
+  /* The practice's own green, and it never changes with the function.
+     `--accent` is contextual — it becomes teal inside a delivery app and grey
+     inside a system one, which is the whole point of it. The mark is not
+     contextual: it is the company, and a company logo that changes colour
+     depending on which screen you are on is not a logo. Anything drawn from
+     `growth/marketing/brand/` uses this. Everything else uses `--accent`. */
+  --brand:      #8bd0a3;
+  --brand-line: rgba(139, 208, 163, 0.42);
+
+  /* `--good` is a yellow-green, and it is deliberately NOT the brand green.
+     The first version of this retheme made them the same colour, on the
+     reasoning that green already means go in this brand. That was wrong, and
+     it was wrong in six places at once:
+
+       * `call-companion`'s price ladder has `.price-btn.active` and
+         `.price-btn.active.good` — two states of one button, rendered
+         pixel-identical, on the screen that is open during a live call;
+       * the hub's markdown reader paints `.tok-key` in `--accent` and
+         `.tok-string` in `--good` on the same line of every JSON fence;
+       * its GitHub-style callouts collapsed `note`, `important` and `tip`
+         into one appearance;
+       * and because growth's function accent *is* the brand green, every
+         success state in every other app was painting growth's wayfinding
+         colour.
+
+     So this sits about 45 degrees off every function accent and off `--warn`,
+     which is the same spacing the six functions keep from each other.
+     `tests/_shared/test_palette.py` measures that now rather than trusting it. */
+  --good:  #a3cf72;
+  --warn:  #e5ae73;
+  --bad:   #ec9789;
+  --good-soft: rgba(163, 207, 114, 0.14);
+  --warn-soft: rgba(229, 174, 115, 0.14);
+  --bad-soft:  rgba(236, 151, 137, 0.14);
+
+  --shadow:   0 8px 28px rgba(0, 0, 0, 0.55);
+  --shadow-1: 0 2px 8px rgba(0, 0, 0, 0.38);
+
+  --r:    8px;
+  --r-sm: 5px;
+  --r-lg: 12px;
+
+  /* The website's three stacks, verbatim. All system-resolved: zero network
+     requests, which the privacy page states in writing and which has to stay
+     true for a practice that sells judgement about data.
+     `--serif` is new here and is for the wordmark only — it is what ties a
+     screen to `growth/marketing/brand/logo-horizontal.svg`. Never headings. */
+  --mono:  ui-monospace, "SF Mono", SFMono-Regular, Menlo, "Cascadia Mono", "Segoe UI Mono", "Roboto Mono", Consolas, monospace;
+  --sans:  -apple-system, BlinkMacSystemFont, "Segoe UI Variable Display", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --serif: ui-serif, Charter, "Bitstream Charter", "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+
+  --topbar: 52px;
+  --side:   264px;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  /* The page base is a clean near-white, not the brand's warm paper #f8f6f0 —
+     the same call `tokens.css` made and wrote down, so the app stops reading
+     as a printed document. The paper colour survives as `--bg-3`, which is
+     what a panel and an inset are, and is the tone the logo is drawn to sit on. */
+  --bg:        #fbfbf9;
+  --bg-2:      #ffffff;
+  --bg-3:      #f2f1ec;
+  --bg-hover:  #e9e8e2;
+  --line:      #e0ded8;
+  --line-soft: #eeece6;
+  --text:      #141711;
+  --text-2:    #565851;
+  /* This token carries arrow labels, role lines and every input hint, so it is
+     held above 4.5:1 rather than being allowed to fade to decoration. */
+  --text-3:    #686a63;
+  --accent:      #184e2f;
+  --accent-soft: rgba(24, 78, 47, 0.10);
+  --accent-line: rgba(24, 78, 47, 0.35);
+  --brand:      #184e2f;
+  --brand-line: rgba(24, 78, 47, 0.35);
+  --good-soft: rgba(74, 107, 24, 0.10);
+  --warn-soft: rgba(128, 77, 24, 0.14);
+  --bad-soft:  rgba(140, 46, 35, 0.10);
+  --good: #4a6b18; --warn: #804d18; --bad: #8c2e23;
+  --shadow:   0 8px 28px rgba(20, 23, 17, 0.12);
+  --shadow-1: 0 1px 4px rgba(20, 23, 17, 0.09);
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0; padding: 0; height: 100%;
+  background: var(--bg); color: var(--text);
+  font-family: var(--sans);
+  font-size: 14px; line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+body { overflow: hidden; }         /* app shell scrolls its own panes */
+body.scroll-page { overflow: auto; }
+
+h1, h2, h3, h4 { margin: 0; font-weight: 600; letter-spacing: -0.01em; }
+h1 { font-size: 19px; }
+h2 { font-size: 15px; }
+h3 { font-size: 13px; color: var(--text-2); text-transform: uppercase; letter-spacing: 0.06em; }
+p  { margin: 0 0 10px; }
+a  { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* A phone number you can tap (UI.telLink). It inherits the accent from `a`
+   above, which is what makes it read as an action rather than a fact. The
+   number itself must not wrap mid-digit-group -- half a number on each line is
+   how you misdial -- and it keeps its own font so a call-list number stays
+   monospaced wherever it is dropped. */
+a.tel { white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+code, kbd, pre, .mono { font-family: var(--mono); font-size: 12.5px; }
+
+kbd {
+  background: var(--bg-3); border: 1px solid var(--line);
+  border-bottom-width: 2px; border-radius: 4px;
+  padding: 1px 5px; font-size: 11px; color: var(--text-2);
+}
+
+::-webkit-scrollbar { width: 11px; height: 11px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--line); border-radius: 6px; border: 3px solid var(--bg); }
+::-webkit-scrollbar-thumb:hover { background: var(--text-3); }
+
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ---------- app shell ---------- */
+
+.app { display: flex; flex-direction: column; height: 100%; }
+
+.topbar {
+  height: var(--topbar); flex: 0 0 var(--topbar);
+  display: flex; align-items: center; gap: 12px;
+  padding: 0 14px;
+  background: var(--bg-2); border-bottom: 1px solid var(--line);
+  z-index: 20;
+}
+.topbar .brand { display: flex; align-items: center; gap: 9px; font-weight: 600; }
+.topbar .brand .dot {
+  width: 9px; height: 9px; border-radius: 50%;
+  background: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.topbar .sub { color: var(--text-3); font-size: 12px; }
+.topbar .spacer { flex: 1; }
+
+.body { flex: 1; display: flex; min-height: 0; }
+
+.sidebar {
+  width: var(--side); flex: 0 0 var(--side);
+  background: var(--bg-2); border-right: 1px solid var(--line);
+  display: flex; flex-direction: column; min-height: 0;
+}
+.sidebar .pad { padding: 12px; }
+.sidebar .scroll { flex: 1; overflow-y: auto; }
+
+.main { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
+.main .scroll { flex: 1; overflow: auto; padding: 18px; }
+
+.inspector {
+  width: 320px; flex: 0 0 320px;
+  background: var(--bg-2); border-left: 1px solid var(--line);
+  overflow-y: auto;
+}
+.inspector.hidden, .sidebar.hidden { display: none; }
+
+/* ---------- buttons ---------- */
+
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  height: 32px; padding: 0 12px;
+  background: var(--bg-3); color: var(--text);
+  border: 1px solid var(--line); border-radius: var(--r-sm);
+  font: inherit; font-size: 13px; font-weight: 500;
+  cursor: pointer; white-space: nowrap;
+  transition: background .12s, border-color .12s, opacity .12s;
+}
+.btn:hover  { background: var(--bg-hover); border-color: var(--text-3); }
+.btn:active { transform: translateY(1px); }
+.btn[disabled], .btn.is-disabled { opacity: .45; pointer-events: none; }
+
+/* The label is the page background, not white. Every accent in this design
+   system is chosen to clear 4.5:1 against --bg, so --bg on the accent is the
+   same ratio and passes by construction. White does not: it was 3.20:1 on the
+   house blue, and on the function palette below it falls to 2.49:1. Changing
+   this one line is what let the other five functions have a colour at all. */
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--bg); }
+.btn.primary:hover { filter: brightness(1.08); }
+.btn.ghost   { background: transparent; border-color: transparent; color: var(--text-2); }
+.btn.ghost:hover { background: var(--bg-3); color: var(--text); }
+.btn.danger  { color: var(--bad); border-color: var(--bad); background: var(--bad-soft); }
+.btn.danger:hover { background: var(--bad); color: #fff; }
+.btn.sm { height: 26px; padding: 0 9px; font-size: 12px; }
+.btn.icon { width: 32px; padding: 0; }
+.btn.icon.sm { width: 26px; }
+.btn.block { width: 100%; }
+
+.btn-group { display: inline-flex; }
+.btn-group .btn { border-radius: 0; margin-left: -1px; }
+.btn-group .btn:first-child { border-radius: var(--r-sm) 0 0 var(--r-sm); margin-left: 0; }
+.btn-group .btn:last-child  { border-radius: 0 var(--r-sm) var(--r-sm) 0; }
+.btn-group .btn.active { background: var(--accent-soft); border-color: var(--accent-line); color: var(--accent); z-index: 1; }
+
+/* ---------- forms ---------- */
+
+.field { margin-bottom: 12px; }
+.field > label {
+  display: block; margin-bottom: 5px;
+  font-size: 11.5px; font-weight: 600; color: var(--text-2);
+  text-transform: uppercase; letter-spacing: 0.05em;
+}
+.field .hint { margin-top: 4px; font-size: 11.5px; color: var(--text-3); }
+.field .err  { margin-top: 4px; font-size: 11.5px; color: var(--bad); }
+
+input[type=text], input[type=number], input[type=search],
+input[type=password], select, textarea {
+  width: 100%; padding: 7px 9px;
+  background: var(--bg); color: var(--text);
+  border: 1px solid var(--line); border-radius: var(--r-sm);
+  font: inherit; font-size: 13px;
+}
+textarea { resize: vertical; min-height: 68px; line-height: 1.55; }
+input:focus, select:focus, textarea:focus { border-color: var(--accent); outline: none; }
+input::placeholder, textarea::placeholder { color: var(--text-3); }
+input[type=range] { width: 100%; accent-color: var(--accent); }
+input[type=checkbox], input[type=radio] { accent-color: var(--accent); width: 15px; height: 15px; }
+select { appearance: none; padding-right: 26px;
+  background-image: linear-gradient(45deg, transparent 50%, var(--text-3) 50%),
+                    linear-gradient(135deg, var(--text-3) 50%, transparent 50%);
+  background-position: calc(100% - 14px) 14px, calc(100% - 9px) 14px;
+  background-size: 5px 5px, 5px 5px; background-repeat: no-repeat; }
+
+.check { display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px; }
+.row { display: flex; gap: 8px; }
+.row > * { flex: 1; }
+
+/* ---------- surfaces ---------- */
+
+.card {
+  background: var(--bg-2); border: 1px solid var(--line);
+  border-radius: var(--r); padding: 14px; margin-bottom: 12px;
+}
+.card.tight { padding: 10px; }
+.card > header {
+  display: flex; align-items: center; gap: 8px;
+  margin: -14px -14px 12px; padding: 10px 14px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.card > header h2 { flex: 1; }
+
+.panel { border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
+.panel > .head {
+  padding: 8px 12px; background: var(--bg-3);
+  border-bottom: 1px solid var(--line);
+  font-size: 12px; font-weight: 600; color: var(--text-2);
+  display: flex; align-items: center; gap: 8px;
+}
+
+.list { display: flex; flex-direction: column; }
+.list-item {
+  display: flex; align-items: center; gap: 9px;
+  padding: 8px 12px; border-bottom: 1px solid var(--line-soft);
+  cursor: pointer; transition: background .1s;
+}
+.list-item:hover { background: var(--bg-3); }
+.list-item.active { background: var(--accent-soft); box-shadow: inset 2px 0 0 var(--accent); }
+.list-item .t { flex: 1; min-width: 0; }
+.list-item .t strong { display: block; font-weight: 550; font-size: 13px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.list-item .t small { color: var(--text-3); font-size: 11.5px; }
+
+/* ---------- table ---------- */
+
+table.grid { width: 100%; border-collapse: collapse; font-size: 13px; }
+table.grid th {
+  text-align: left; padding: 7px 10px;
+  background: var(--bg-3); border-bottom: 1px solid var(--line);
+  font-size: 11.5px; font-weight: 600; color: var(--text-2);
+  text-transform: uppercase; letter-spacing: 0.04em;
+  position: sticky; top: 0; z-index: 1;
+}
+table.grid td { padding: 7px 10px; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
+table.grid tbody tr:hover { background: var(--bg-3); }
+table.grid td.num, table.grid th.num { text-align: right; font-family: var(--mono); font-size: 12.5px; }
+
+/* ---------- badges, chips, meters ---------- */
+
+.badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 1px 7px; border-radius: 20px;
+  font-size: 11px; font-weight: 600; letter-spacing: .02em;
+  background: var(--bg-3); color: var(--text-2); border: 1px solid var(--line);
+}
+.badge.good { background: var(--good-soft); color: var(--good); border-color: transparent; }
+.badge.warn { background: var(--warn-soft); color: var(--warn); border-color: transparent; }
+.badge.bad  { background: var(--bad-soft);  color: var(--bad);  border-color: transparent; }
+.badge.accent { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
+
+.chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 2px 6px 2px 8px; margin: 0 4px 4px 0;
+  background: var(--bg-3); border: 1px solid var(--line);
+  border-radius: 14px; font-size: 12px;
+}
+.chip button { background: none; border: 0; color: var(--text-3); cursor: pointer;
+  font-size: 14px; line-height: 1; padding: 0 2px; }
+.chip button:hover { color: var(--bad); }
+
+.meter { height: 6px; background: var(--bg-3); border-radius: 4px; overflow: hidden; }
+.meter > span { display: block; height: 100%; background: var(--accent); transition: width .3s; }
+.meter.good > span { background: var(--good); }
+.meter.warn > span { background: var(--warn); }
+.meter.bad  > span { background: var(--bad); }
+
+.stat { padding: 10px 12px; background: var(--bg-3); border-radius: var(--r); }
+.stat .k { font-size: 11px; color: var(--text-3); text-transform: uppercase; letter-spacing: .05em; }
+.stat .v { font-size: 21px; font-weight: 650; font-family: var(--mono); letter-spacing: -.02em; }
+.stat .d { font-size: 11.5px; color: var(--text-3); }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); gap: 9px; }
+
+/* ---------- tabs ---------- */
+
+.tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); padding: 0 12px; background: var(--bg-2); }
+.tab {
+  padding: 9px 13px; background: none; border: 0; border-bottom: 2px solid transparent;
+  color: var(--text-3); font: inherit; font-size: 13px; font-weight: 500; cursor: pointer;
+}
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+/* ---------- toast ---------- */
+
+#toasts { position: fixed; bottom: 16px; right: 16px; z-index: 900;
+  display: flex; flex-direction: column; gap: 8px; align-items: flex-end; }
+.toast {
+  display: flex; align-items: center; gap: 9px;
+  padding: 9px 13px; max-width: 380px;
+  background: var(--bg-2); border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--r-sm); box-shadow: var(--shadow); font-size: 13px;
+  animation: toast-in .18s ease-out;
+}
+.toast .grow { flex: 1; }
+.toast .btn { flex: 0 0 auto; margin-left: 2px; }
+.toast.good { border-left-color: var(--good); }
+.toast.warn { border-left-color: var(--warn); }
+.toast.bad  { border-left-color: var(--bad); }
+.toast.out  { animation: toast-out .18s ease-in forwards; }
+@keyframes toast-in  { from { opacity: 0; transform: translateY(8px); } }
+@keyframes toast-out { to   { opacity: 0; transform: translateX(12px); } }
+
+/* ---------- modal ---------- */
+
+.modal-back {
+  position: fixed; inset: 0; z-index: 800;
+  background: rgba(0, 0, 0, .55);
+  display: flex; align-items: center; justify-content: center; padding: 20px;
+  animation: fade .14s;
+}
+@keyframes fade { from { opacity: 0; } }
+.modal {
+  background: var(--bg-2); border: 1px solid var(--line);
+  border-radius: var(--r-lg); box-shadow: var(--shadow);
+  width: 100%; max-width: 520px; max-height: 86vh;
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.modal.wide { max-width: 860px; }
+.modal > header { padding: 14px 16px; border-bottom: 1px solid var(--line); display: flex; gap: 10px; align-items: center; }
+.modal > header h2 { flex: 1; font-size: 15px; }
+.modal > .content { padding: 16px; overflow-y: auto; }
+.modal > footer { padding: 12px 16px; border-top: 1px solid var(--line);
+  display: flex; gap: 8px; justify-content: flex-end; background: var(--bg-3); }
+
+/* ---------- empty state ---------- */
+
+.empty { padding: 44px 24px; text-align: center; color: var(--text-3); }
+.empty .big { font-size: 30px; opacity: .5; margin-bottom: 10px; }
+.empty h2 { color: var(--text-2); margin-bottom: 6px; }
+.empty p { max-width: 400px; margin: 0 auto 14px; font-size: 13px; }
+
+/* ---------- misc ---------- */
+
+.muted   { color: var(--text-3); }
+.small   { font-size: 12px; }
+.nowrap  { white-space: nowrap; }
+.truncate{ overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hidden  { display: none !important; }
+.sep     { height: 1px; background: var(--line); margin: 12px 0; }
+.vsep    { width: 1px; background: var(--line); align-self: stretch; margin: 0 4px; }
+.flex    { display: flex; align-items: center; gap: 8px; }
+.flex-col{ display: flex; flex-direction: column; gap: 8px; }
+.grow    { flex: 1; }
+.right   { margin-left: auto; }
+.center  { text-align: center; }
+.mt      { margin-top: 12px; }
+.mb      { margin-bottom: 12px; }
+
+.saving { font-size: 11.5px; color: var(--text-3); display: flex; align-items: center; gap: 5px; }
+.saving .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--good); }
+.saving.busy .dot { background: var(--warn); animation: pulse 1s infinite; }
+@keyframes pulse { 50% { opacity: .3; } }
+
+.kbdhint { color: var(--text-3); font-size: 11.5px; }
+
+/* ---------- print (reports) ---------- */
+
+@media print {
+  :root { color-scheme: light; }
+  body { overflow: visible; background: #fff; color: #000; }
+  .topbar, .sidebar, .inspector, .no-print, #toasts { display: none !important; }
+  .main .scroll { overflow: visible; padding: 0; }
+  .page-break { break-after: page; }
+}
+
+/* ---------- one colour per function ----------
+
+   An app's colour comes from the function folder it lives in. appkit's
+   `decorate_html` stamps `data-function` onto <html> for every page an app
+   serves, and the hub sets it on each of its six cards, so both of these
+   selector forms are needed: the plain one themes the whole document, the
+   descendant one themes six functions side by side on one screen.
+
+   THIS BLOCK MUST STAY LAST. Every rule here has the same specificity as the
+   `:root` blocks at the top of this file, so it wins on source order alone.
+   Put another `:root { --accent: … }` below it and all six functions go blue
+   at once, silently — `tests/_shared/test_palette.py` fails if that happens.
+
+   Every accent is checked in both modes against --bg and --bg-2 at 4.5:1 by
+   that same test. Do not eyeball a replacement; run the test.
+
+   `unfiled` is deliberately drab. An app nobody filed under a function should
+   look unfinished, because it is.
+
+   ---------------------------------------------------------------------------
+   RETUNED AUGUST 2 2026, AND THIS BLOCK IS THE BRAND'S ONE EXCEPTION.
+
+   `growth/marketing/brand/logo-sheet.html` says, in the don't list: *"Don't
+   recolour it. One accent, and it is already chosen."* Six accents is plainly
+   in tension with that, so it is argued here rather than done quietly.
+
+   The six are **wayfinding, not brand**. They are never seen by a client — the
+   assessment report hard-codes its own paper palette and does not read
+   `--accent` at all — and they exist because one person moves between eighteen
+   apps a day and the colour is how you know which part of the business you are
+   in before you have read a word. The vault's graph uses the same six, and so
+   do the function folders and every note's `function:` field. Collapsing them
+   to one green would cost real navigation to gain a consistency nobody outside
+   this laptop would ever observe.
+
+   What changed: the old six were an evenly-spaced rainbow picked to be
+   maximally distinct from each other and from nothing in particular. The new
+   six are **anchored on the brand.** Growth *is* the brand green — it is the
+   function the whole practice exists for, and the one whose apps get opened at
+   6:30am. The other five are held at lower chroma than before so the green
+   stays the loudest thing on any screen that shows several at once, and every
+   neutral in the file now shares their hue family.
+
+   The spacing rule from `app-roadmap.md` §3 still holds — roughly 36° apart,
+   avoiding the semantic hues — but `--good` is now the brand green too, which
+   frees the arc that the old `#35c17a` success colour used to block.
+   --------------------------------------------------------------------------- */
+
+/* ---------- function palette: start ---------- */
+[data-function="growth"] { --accent: #8bd0a3; --accent-soft: rgba(139,208,163,.14); --accent-line: rgba(139,208,163,.42); }
+[data-function="delivery"] { --accent: #7fc7d9; --accent-soft: rgba(127,199,217,.14); --accent-line: rgba(127,199,217,.42); }
+[data-function="strategy"] { --accent: #a9b4e8; --accent-soft: rgba(169,180,232,.14); --accent-line: rgba(169,180,232,.42); }
+[data-function="capture"] { --accent: #d3a9e0; --accent-soft: rgba(211,169,224,.14); --accent-line: rgba(211,169,224,.42); }
+[data-function="back-office"] { --accent: #e0a3b8; --accent-soft: rgba(224,163,184,.14); --accent-line: rgba(224,163,184,.42); }
+[data-function="system"] { --accent: #9aa69c; --accent-soft: rgba(154,166,156,.14); --accent-line: rgba(154,166,156,.42); }
+[data-function="unfiled"] { --accent: #8a8f88; --accent-soft: rgba(138,143,136,.14); --accent-line: rgba(138,143,136,.42); }
+
+:root[data-theme="light"] [data-function="growth"],
+[data-theme="light"][data-function="growth"] { --accent: #184e2f; --accent-soft: rgba(24,78,47,.10); --accent-line: rgba(24,78,47,.35); }
+:root[data-theme="light"] [data-function="delivery"],
+[data-theme="light"][data-function="delivery"] { --accent: #1a5a6b; --accent-soft: rgba(26,90,107,.10); --accent-line: rgba(26,90,107,.35); }
+:root[data-theme="light"] [data-function="strategy"],
+[data-theme="light"][data-function="strategy"] { --accent: #43479b; --accent-soft: rgba(67,71,155,.10); --accent-line: rgba(67,71,155,.35); }
+:root[data-theme="light"] [data-function="capture"],
+[data-theme="light"][data-function="capture"] { --accent: #7a3690; --accent-soft: rgba(122,54,144,.10); --accent-line: rgba(122,54,144,.35); }
+:root[data-theme="light"] [data-function="back-office"],
+[data-theme="light"][data-function="back-office"] { --accent: #97324f; --accent-soft: rgba(151,50,79,.10); --accent-line: rgba(151,50,79,.35); }
+:root[data-theme="light"] [data-function="system"],
+[data-theme="light"][data-function="system"] { --accent: #4a5a4e; --accent-soft: rgba(74,90,78,.10); --accent-line: rgba(74,90,78,.35); }
+:root[data-theme="light"] [data-function="unfiled"],
+[data-theme="light"][data-function="unfiled"] { --accent: #63685f; --accent-soft: rgba(99,104,95,.10); --accent-line: rgba(99,104,95,.35); }
+/* ---------- function palette: end ---------- */

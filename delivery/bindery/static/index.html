@@ -1,0 +1,46 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="stylesheet" href="/_shared/base.css">
+<link rel="stylesheet" href="app.css">
+<title>Knowledge Base Builder</title>
+
+<div class="app">
+  <div class="topbar">
+    <div class="brand"><span class="dot"></span> Knowledge Base Builder</div>
+    <div class="sub" id="kbName">—</div>
+    <div class="spacer"></div>
+    <div class="saving" id="saveState"></div>
+    <button class="btn sm ghost" id="btnHelp" title="What each finding means">What this means</button>
+    <span id="themeSlot"></span>
+  </div>
+
+  <div class="body">
+    <aside class="sidebar no-print">
+      <div class="pad">
+        <button class="btn primary block" id="btnNewKb">New knowledge base</button>
+      </div>
+      <div class="scroll"><div class="list" id="kbList"></div></div>
+      <div class="source" id="sourcePane"></div>
+    </aside>
+
+    <main class="main">
+      <div class="tabs no-print" id="tabs">
+        <button class="tab active" data-tab="search">Search</button>
+        <button class="tab" data-tab="report">Gap report</button>
+        <button class="tab" data-tab="files">All files</button>
+        <button class="tab" data-tab="checklist">What to check for</button>
+      </div>
+      <div class="searchbar no-print" id="searchbar">
+        <input type="search" id="q" autocomplete="off" spellcheck="false"
+               placeholder="Search everything in this folder…  (press / )">
+        <div class="searchmeta" id="searchMeta"></div>
+      </div>
+      <div class="scroll" id="pane"></div>
+    </main>
+
+    <aside class="inspector no-print" id="inspector"></aside>
+  </div>
+</div>
+
+<script src="/_shared/ui.js"></script>
+<script src="app.js"></script>

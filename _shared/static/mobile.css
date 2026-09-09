@@ -1,0 +1,401 @@
+/* mobile.css — the phone-and-tablet layer over base.css.
+   Loaded ONLY when an app is served through the phone shell, which injects it.
+   On the desktop nothing links it, so nothing here can regress a desktop app.
+
+   It restyles rather than rebuilds. The five apps already use minmax(0, 1fr),
+   auto-fit grids and a couple of max-width breakpoints, so most of the work is
+   the things a mouse never needed: fingers, a notch, and a browser chrome that
+   changes height while you scroll.
+
+   Colours come from base.css tokens only -- there is not one literal here. */
+
+/* ---------- the viewport itself ---------- */
+
+:root {
+  /* Real usable height. 100vh on iOS means "tallest the viewport ever gets",
+     so a bottom bar sits under Safari's toolbar and cannot be tapped. 100dvh
+     is the live value; the -webkit fallback covers older iOS. */
+  --vh: 100vh;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+}
+
+@supports (height: 100dvh) {
+  :root { --vh: 100dvh; }
+}
+
+html, body {
+  height: var(--vh);
+  /* Stops iOS inflating text in landscape, which silently breaks every
+     carefully-sized row in these apps. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* Rubber-band scrolling drags the whole app down and reveals a blank strip
+   under a fixed topbar. The panes still scroll; the document does not. */
+body { overscroll-behavior-y: none; }
+
+.app { height: var(--vh); }
+
+/* Every scrolling pane gets momentum, and gets to keep scrolling when a
+   neighbouring pane hits its end. */
+.main .scroll, .sidebar .scroll, .inspector, .modal > .content, .scroll {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+/* ---------- touch, at any size ---------- */
+
+@media (pointer: coarse) {
+  /* 44px is Apple's minimum tappable edge. These apps were built at 30px. */
+  .btn { min-height: 44px; padding: 0 14px; }
+  .btn.icon { min-width: 44px; width: 44px; }
+
+  /* `.sm` used to keep its desktop 36px here, and that was wrong.
+     **On a touch screen there is no such thing as a small button** — 36px is
+     below the floor a thumb can reliably hit, and `.sm` is not rare: measured
+     August 2 2026, it was 15 buttons across 8 apps, one of them alone having 40
+     on one screen.
+
+     The floor applies to the *target*, not the look, so the text stays small
+     and the padding stays tight — a `.sm` button on a phone reads as secondary
+     and is still 44px tall. Expanding an invisible hit area with a pseudo-
+     element would have kept the 36px look, but `getBoundingClientRect()` would
+     still report 36 — a fix that `layout_probe.py` could not see is a fix
+     nobody can check, which is the trap this whole area keeps falling into. */
+  .btn.sm { min-height: 44px; padding: 0 11px; font-size: 13px; }
+  .btn.icon.sm { min-width: 44px; width: 44px; }
+
+  .list-item { min-height: 46px; }
+  .tab { min-height: 44px; display: flex; align-items: center; }
+  .check { min-height: 32px; }
+  input[type=checkbox], input[type=radio] { width: 20px; height: 20px; }
+
+  /* A close button you cannot miss with a thumb. */
+  .chip button { min-width: 28px; min-height: 28px; }
+
+  /* 16px or larger, or the browser zooms the whole page in on focus and never
+     zooms back out. This is the single most common way a desktop web app
+     becomes unusable on a phone.
+
+     `!important` is deliberate, and it is the second rule in this file to need
+     it. Written as a bare element selector this lost, silently, in six of the
+     fifteen apps -- `.driver input` (0,1,1), `.row .side input` (0,2,1),
+     `.giver textarea` (0,1,1) and `textarea#draft` (1,0,1) all outrank
+     `input` (0,0,1), so the app's own 12px won and the phone zoomed. Measured
+     on August 2 2026, not reasoned about.
+
+     Raising this to `.app input` or similar would only move the fight one
+     rung up and lose it again the next time an app writes a two-class
+     selector. This is a device capability floor, not a style preference: no
+     app is allowed to opt out of it, so it says so. */
+  input, input[type=text], input[type=number], input[type=date],
+  input[type=password], input[type=email], input[type=tel], select, textarea {
+    font-size: 16px !important;
+    min-height: 44px;
+  }
+  textarea { min-height: 88px; }
+
+  /* A tap floor for controls that are not `.btn`. Every app builds its own
+     small round toggles -- `plan-clock`'s 22px `.tick`, `vault-doctor`'s
+     `.g-head` -- and they were invisible to the `.btn` rules above.
+
+     mobile.css is injected immediately before `</head>`, after the app's own
+     stylesheet, so a single class here ties with the app's own single class
+     and wins on source order. That is the same ordering the topbar fix
+     depends on. */
+  button { min-height: 44px; }
+  .tick { min-height: 44px; height: 44px; flex-basis: 44px; width: 44px; }
+  .g-head { min-height: 44px; }
+
+  /* A phone number is the only link in these apps that starts a phone call, so
+     it gets the 44px floor everything else tappable already has. `inline-block`
+     is what lets the padding count -- vertical padding on an inline element
+     paints but does not enlarge the hit box, which is exactly the kind of tap
+     target that looks big and misses. The negative margin gives the height back
+     to the line so a number sitting in a muted one-line summary does not shove
+     the rows around it apart. */
+  a.tel {
+    display: inline-block;
+    min-height: 44px;
+    line-height: 44px;
+    margin-block: -12px;
+    padding-inline: 2px;
+  }
+
+  /* Hover styling on a touch screen sticks after the tap and reads as
+     "selected". Let :active carry the feedback instead. */
+  .btn:hover { background: var(--bg-2); border-color: var(--line); }
+  .btn.primary:hover { filter: none; }
+  .btn.ghost:hover { background: transparent; color: var(--text-2); }
+  .list-item:hover { background: transparent; }
+  table.grid tbody tr:hover { background: transparent; }
+  a:hover { text-decoration: none; }
+
+  .btn:active { background: var(--bg-hover); }
+  .btn.primary:active { filter: brightness(1.12); }
+  .list-item:active { background: var(--bg-3); }
+}
+
+/* ---------- phone: one column ---------- */
+
+@media (max-width: 820px) {
+  /* The three-pane desktop shell becomes a single column with a drawer. */
+  .body { flex-direction: column; min-height: 0; }
+
+  /* The topbar is a single non-wrapping flex row: name, then however many
+     status readouts the app has, then a spacer, then the primary action. That
+     fits a laptop. On a 412px phone it ran off the right edge and cut the
+     primary button in half -- found on a Pixel 7, where "Start calling" showed
+     as "Sta".
+
+     So on a phone it becomes two rows: **name and the action on top, status
+     underneath.** The action is the thing a thumb is reaching for, so it keeps
+     the top row and never shrinks. */
+  .topbar {
+    padding-top: var(--safe-top);
+    height: auto;
+    /* base.css pins this with `flex: 0 0 var(--topbar)`. Overriding `height`
+       alone is not enough -- the flex-basis still holds the bar at one row, so
+       the wrapped status row rendered on top of the app's tabs. */
+    flex: 0 0 auto;
+    min-height: var(--topbar);
+    padding-left: max(10px, var(--safe-left));
+    padding-right: max(10px, var(--safe-right));
+    padding-bottom: 6px;
+    gap: 8px;
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+
+  /* Anything not named below lands in the status row rather than ahead of the
+     app's own name. Unknown children are far more often a readout than a
+     primary control, and an app written next year gets a sane answer with no
+     edit here. */
+  .topbar > * { order: 5; }
+
+  /* The shell's own chrome, injected by mobile.js. Both carry `.btn`, so
+     without this they would be ordered as actions and land on the right of the
+     title -- a back arrow that is not in the top-left corner is a back arrow
+     nobody finds.
+
+     Two class names on purpose. `.topbar .shell-home` and `.topbar .btn` have
+     the *same* specificity, so the one written later would win and the first
+     attempt at this put both controls in the middle of the bar. */
+  .topbar .btn.shell-home,
+  .topbar .btn.drawer-btn { order: 0; flex: 0 0 auto; }
+
+  /* `flex: 1 1 auto` gives the name a flex-basis of its own content, and a
+     wrapping flex container decides where to break using that basis -- so the
+     app name claimed its full width *first* and pushed every action onto a
+     second row. Measured: `Workflow Mapper` took 217px of a 390px bar and
+     `Call Companion` 194px, in both cases more than the buttons beside them.
+
+     `flex-basis: 0` takes the name out of the line-breaking sum entirely: the
+     actions lay out first, the name then grows into whatever is left on that
+     row and ellipsises. It is the one item on the bar that can afford to be
+     abbreviated, because you just tapped it to get here. `min-width` keeps it
+     from collapsing to the dot alone. */
+  .topbar .brand {
+    order: 1;
+    flex: 1 1 0;
+    min-width: 5.5em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  /* Without this the dot is a flex item that agrees to be squashed to nothing
+     as the name truncates, and the app loses its function colour. */
+  .topbar .brand .dot { flex: 0 0 auto; }
+
+  /* The spacer exists to push the actions to the right of a wide bar. In a
+     wrapping bar it does the opposite of its job: `flex: 1` makes it eat the
+     rest of its line, so every action after it was forced onto a new row. It
+     is why `call-companion` and `bindery` measured three rows and
+     `workflow-mapper` four, against a comment in this file promising two. */
+  .topbar .spacer { display: none; }
+  .topbar .btn, .topbar > button { order: 3; flex: 0 0 auto; }
+
+  /* The forced line break. A zero-height item with a full-width basis, sitting
+     between the action and the readouts. */
+  .topbar::after {
+    content: "";
+    order: 4;
+    flex-basis: 100%;
+    height: 0;
+  }
+
+  /* A vertical rule between groups means nothing once the bar wraps. */
+  .topbar .vsep { display: none; }
+
+  /* Subtitles are the first thing to go; the app name and the controls stay. */
+  .topbar .sub, .topbar .kbdhint { display: none; }
+  .topbar h1 { font-size: 16px; }
+
+  /* Sidebar becomes an off-canvas drawer. mobile.js adds the button that
+     toggles .drawer-open, and a backdrop that closes it. */
+  .sidebar {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 60;
+    width: min(84vw, 320px);
+    max-width: 84vw;
+    flex-basis: auto;
+    padding-top: var(--safe-top);
+    padding-bottom: var(--safe-bottom);
+    border-right: 1px solid var(--line);
+    box-shadow: var(--shadow);
+    transform: translateX(-102%);
+    transition: transform .22s ease;
+    will-change: transform;
+  }
+  .sidebar.drawer-open { transform: translateX(0); }
+
+  .drawer-back {
+    position: fixed;
+    inset: 0;
+    z-index: 55;
+    background: rgba(0, 0, 0, 0.5);
+    border: 0;
+    padding: 0;
+    animation: drawer-fade .18s ease;
+  }
+  @keyframes drawer-fade { from { opacity: 0; } to { opacity: 1; } }
+
+  .main { min-height: 0; }
+  .main .scroll {
+    padding: 12px;
+    padding-left: max(12px, var(--safe-left));
+    padding-right: max(12px, var(--safe-right));
+    padding-bottom: max(24px, var(--safe-bottom));
+  }
+
+  /* A right-hand inspector has nowhere to go on a 390px screen. It drops
+     under the main pane and scrolls with the page instead of beside it. */
+  .inspector {
+    width: auto;
+    flex-basis: auto;
+    border-left: 0;
+    border-top: 1px solid var(--line);
+    max-height: none;
+  }
+
+  /* Any two-column grid an app declared collapses. Apps use their own class
+     names for these, so they are listed rather than guessed at. */
+  .two-col, .call-wrap, .two, .pair, .keys, .kv {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+  .stats { grid-template-columns: repeat(auto-fit, minmax(104px, 1fr)); }
+
+  /* Wide tables scroll sideways inside their own box rather than pushing the
+     page wider than the screen. mobile.js wraps them. */
+  .tscroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    max-width: 100%;
+  }
+  .tscroll > table.grid { min-width: 520px; }
+
+  /* Full-bleed sheets read better than floating cards at this width. */
+  .modal {
+    max-width: 100%;
+    width: 100%;
+    max-height: calc(var(--vh) - var(--safe-top) - 8px);
+    margin-top: auto;
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+  .modal-back { align-items: flex-end; padding: 0; }
+  .modal > footer { padding-bottom: max(12px, var(--safe-bottom)); }
+  .modal > footer .btn { flex: 1; }
+
+  .toast {
+    left: 10px;
+    right: 10px;
+    bottom: max(10px, var(--safe-bottom));
+    max-width: none;
+  }
+
+  .card { padding: 12px; }
+  .empty { padding: 32px 16px; }
+
+  /* Keyboard hints are noise on a device with no keyboard. */
+  kbd, .kbdhint { display: none; }
+}
+
+/* ---------- tablet: keep two panes, tighten them ---------- */
+
+@media (min-width: 821px) and (max-width: 1180px) {
+  :root { --side: 224px; }
+  .main .scroll { padding: 14px; }
+  .inspector { width: 260px; flex-basis: 260px; }
+}
+
+/* ---------- the tab strip: one line that scrolls ----------
+
+   Deliberately spanning both blocks above -- 1180 is where the tablet block
+   ends, so this is "every width the mobile layer treats as small". Six apps
+   have tabs and the defect is the same on both: measured at 390px the strip
+   was 60px, and at 834px `assessment-builder` was also 60px, because its tabs
+   sit in a `.main` squeezed between a sidebar and an inspector. The width that
+   matters is the pane's, not the screen's, so keying this to the phone alone
+   would fix six apps on a phone and leave one broken on an iPad.
+
+   What goes wrong: `.tabs` is a non-wrapping flex row, so on a narrow screen
+   the tabs do not wrap -- they *shrink*, and the label inside each one wraps
+   instead. `call-companion`'s five tabs each fell to two lines, so the strip
+   cost 60px under a 113px top bar. On the Pixel 7 it is worse, because
+   Android's system font scale reaches a WebView as a text zoom: the labels
+   take three lines, and the min-content widths stop fitting at all, so the
+   strip pushes the whole page sideways.
+
+   A strip whose height depends on how long the labels happen to be and what
+   font scale the phone is set to is not a layout. So it becomes what a phone
+   tab strip normally is: **one row at the tap-target height, scrolling
+   sideways.** Every tab keeps its full label, the row is 44px whatever the
+   font scale, and nothing spills onto the page. */
+
+@media (max-width: 1180px) {
+  /* `flex: 0 0 auto` is the load-bearing half. Without it the tabs still
+     shrink to fit and `overflow-x` never has anything to scroll -- the strip
+     would look fixed and behave exactly as it did before. */
+  .tab {
+    flex: 0 0 auto;
+    white-space: nowrap;
+    scroll-snap-align: start;
+  }
+
+  .tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    /* A sideways flick on the tabs must not turn into a back gesture or drag
+       the page with it. */
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x proximity;
+    scroll-padding-left: 12px;
+    /* A scrollbar track would add height back to the row it was just taken
+       from, and a touch screen does not show one anyway. */
+    scrollbar-width: none;
+  }
+  .tabs::-webkit-scrollbar { display: none; }
+
+  /* The last tab needs somewhere to land, or it sits flush against the edge
+     and reads as cut off even when it is the end of the list. */
+  .tabs::after {
+    content: "";
+    flex: 0 0 4px;
+  }
+}
+
+/* Landscape on a phone is short, not wide. Give the content the height. */
+@media (max-height: 460px) and (orientation: landscape) {
+  .topbar { min-height: 44px; }
+  .main .scroll { padding-top: 8px; padding-bottom: 8px; }
+}

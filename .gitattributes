@@ -1,0 +1,11 @@
+# One line-ending convention everywhere, so a checkout on another machine is
+# not a whole-file diff.
+* text=auto eol=lf
+
+# Except batch files, which Windows wants with CRLF.
+*.cmd text eol=crlf
+
+*.png binary
+*.pdf binary
+*.zip binary
+*.db binary

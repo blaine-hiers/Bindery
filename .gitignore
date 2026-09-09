@@ -1,0 +1,22 @@
+# Whatever you scanned, mapped or collected. It is yours, it lives on your
+# machine, and it is a WAL sqlite database that would conflict on every merge.
+data/
+**/data/
+
+# Generated output.
+reports/
+dist/
+
+# Python.
+__pycache__/
+*.py[cod]
+.pytest_cache/
+build/
+*.spec
+
+# OS and editor noise.
+Thumbs.db
+desktop.ini
+.DS_Store
+*.tmp
+*~

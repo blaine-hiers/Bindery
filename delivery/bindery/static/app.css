@@ -1,0 +1,192 @@
+/* app.css — Knowledge Base Builder.
+   Everything here builds on /_shared/base.css. No hard-coded colours: every
+   value is a base.css variable so light and dark both work. */
+
+/* ---------- sidebar source panel ---------- */
+
+.source {
+  border-top: 1px solid var(--line);
+  padding: 12px;
+  background: var(--bg-2);
+}
+.source .path {
+  font-family: var(--mono); font-size: 11.5px; color: var(--text-2);
+  word-break: break-all; line-height: 1.45;
+  background: var(--bg); border: 1px solid var(--line);
+  border-radius: var(--r-sm); padding: 6px 8px; margin-bottom: 8px;
+  max-height: 62px; overflow: auto;
+}
+.source .path.none { color: var(--text-3); font-style: italic; font-family: var(--sans); }
+.source .btns { display: flex; gap: 6px; }
+.source .btns .btn { flex: 1; }
+.source .prog { margin-top: 10px; font-size: 12px; color: var(--text-2); }
+.source .prog .cur {
+  font-family: var(--mono); font-size: 11px; color: var(--text-3);
+  display: block; margin-top: 4px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl;
+}
+.source .prog .meter { margin: 6px 0 4px; }
+
+.kbrow .t small { display: flex; gap: 6px; align-items: center; }
+.kbrow .spin { color: var(--warn); }
+
+/* ---------- search ---------- */
+
+.searchbar {
+  padding: 12px 18px 10px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg-2);
+}
+.searchbar input[type=search] {
+  font-size: 15px; padding: 9px 12px; height: 38px;
+}
+.searchmeta {
+  margin-top: 6px; font-size: 11.5px; color: var(--text-3);
+  display: flex; gap: 10px; align-items: center; flex-wrap: wrap; min-height: 16px;
+}
+.searchmeta b { color: var(--text-2); font-weight: 600; }
+.searchbar.off { display: none; }
+
+.hits { display: flex; flex-direction: column; gap: 8px; }
+.hit-card {
+  border: 1px solid var(--line); border-radius: var(--r);
+  background: var(--bg-2); padding: 10px 12px; cursor: pointer;
+  transition: border-color .12s, background .12s;
+}
+.hit-card:hover { border-color: var(--accent-line); background: var(--bg-3); }
+.hit-card .top { display: flex; align-items: baseline; gap: 8px; }
+.hit-card .nm { font-weight: 600; font-size: 13.5px; }
+.hit-card .fld {
+  font-family: var(--mono); font-size: 11px; color: var(--text-3);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0;
+}
+.hit-card .sc { font-family: var(--mono); font-size: 11px; color: var(--text-3); }
+.hit-card .snip {
+  margin-top: 5px; font-size: 12.5px; color: var(--text-2); line-height: 1.55;
+}
+.hit-card .facts {
+  margin-top: 6px; font-size: 11px; color: var(--text-3);
+  display: flex; gap: 10px; flex-wrap: wrap;
+}
+mark, .hitmark {
+  background: var(--warn-soft); color: var(--text);
+  border-radius: 3px; padding: 0 2px; font-weight: 600;
+}
+
+/* ---------- document view ---------- */
+
+.docview .head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.docview .head h1 { font-size: 17px; flex: 1; min-width: 0; }
+.docview .meta {
+  font-family: var(--mono); font-size: 11.5px; color: var(--text-3);
+  margin-bottom: 12px; word-break: break-all;
+}
+.doctext {
+  white-space: pre-wrap; word-break: break-word;
+  font-size: 13px; line-height: 1.65; color: var(--text);
+  background: var(--bg-2); border: 1px solid var(--line);
+  border-radius: var(--r); padding: 14px; max-height: none;
+}
+
+/* ---------- report ---------- */
+
+.report { max-width: 1000px; }
+.report h1 { font-size: 20px; margin-bottom: 4px; }
+.report .lede { color: var(--text-2); font-size: 13px; margin-bottom: 16px; }
+.report section { margin-bottom: 18px; }
+.report section > h2 {
+  font-size: 15px; margin-bottom: 4px;
+  display: flex; align-items: baseline; gap: 8px;
+}
+.report section > .sub { color: var(--text-3); font-size: 12px; margin-bottom: 10px; }
+
+.headline {
+  display: flex; gap: 9px; align-items: flex-start;
+  padding: 9px 11px; border-radius: var(--r-sm); margin-bottom: 7px;
+  border-left: 3px solid var(--text-3); background: var(--bg-3);
+  font-size: 13.5px; line-height: 1.5;
+}
+.headline.bad  { border-left-color: var(--bad);  background: var(--bad-soft); }
+.headline.warn { border-left-color: var(--warn); background: var(--warn-soft); }
+.headline.info { border-left-color: var(--accent); background: var(--accent-soft); }
+
+/* A score line we could not work out. Dimmed, but the wording is still readable
+   — the owner needs to see why it is blank, not just that it is. */
+.grid tr.unmeasured td { color: var(--text-3); }
+.grid tr.unmeasured td:first-child > div:first-child { color: var(--text-2); }
+
+.scorebox { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+.scorebig {
+  font-family: var(--mono); font-size: 46px; font-weight: 700;
+  line-height: 1; letter-spacing: -.03em;
+}
+.scorebig small { font-size: 15px; color: var(--text-3); font-weight: 500; }
+
+.dupgroup {
+  border: 1px solid var(--line); border-radius: var(--r-sm);
+  padding: 8px 10px; margin-bottom: 8px; background: var(--bg-2);
+}
+.dupgroup .hdr { display: flex; gap: 8px; align-items: center; margin-bottom: 5px; font-size: 12.5px; }
+.dupgroup ul { margin: 0; padding-left: 18px; }
+.dupgroup li { font-family: var(--mono); font-size: 11.5px; color: var(--text-2); line-height: 1.6;
+  cursor: pointer; }
+.dupgroup li:hover { color: var(--accent); }
+
+.pathlist { margin: 0; padding-left: 18px; }
+.pathlist li { font-family: var(--mono); font-size: 11.5px; color: var(--text-2);
+  line-height: 1.65; cursor: pointer; }
+.pathlist li:hover { color: var(--accent); }
+
+.missing-item { padding: 8px 0; border-bottom: 1px solid var(--line-soft); }
+.missing-item:last-child { border-bottom: 0; }
+.missing-item .lbl { font-weight: 600; font-size: 13px; }
+.missing-item .why { color: var(--text-3); font-size: 12px; margin-top: 2px; }
+
+.bar-row { display: flex; align-items: center; gap: 9px; margin-bottom: 6px; font-size: 12.5px; }
+.bar-row .lbl { width: 190px; flex: 0 0 190px; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; }
+.bar-row .meter { flex: 1; }
+.bar-row .num { width: 78px; text-align: right; font-family: var(--mono);
+  font-size: 11.5px; color: var(--text-3); }
+
+/* ---------- inspector ---------- */
+
+.inspector .pad { padding: 14px; }
+.inspector h3 { margin-bottom: 8px; }
+.inspector .kv { display: flex; justify-content: space-between; gap: 8px;
+  font-size: 12.5px; padding: 4px 0; border-bottom: 1px solid var(--line-soft); }
+.inspector .kv span:last-child { font-family: var(--mono); color: var(--text-2); }
+
+/* ---------- folder picker ---------- */
+
+.picker { max-height: 46vh; overflow: auto; border: 1px solid var(--line);
+  border-radius: var(--r-sm); }
+.picker .list-item small { font-family: var(--mono); }
+
+/* ---------- checklist editor ---------- */
+
+.chk-item { border: 1px solid var(--line); border-radius: var(--r);
+  padding: 10px 12px; margin-bottom: 8px; background: var(--bg-2); }
+.chk-item .row1 { display: flex; align-items: center; gap: 9px; }
+.chk-item .row1 input[type=text] { flex: 1; }
+.chk-item .ph { margin-top: 7px; }
+.chk-item .ph label { display: block; font-size: 11px; color: var(--text-3);
+  text-transform: uppercase; letter-spacing: .05em; margin-bottom: 3px; }
+
+/* ---------- narrow screens (1366x768 and up is the target) ---------- */
+
+@media (max-width: 1180px) {
+  .inspector { display: none; }
+}
+@media (max-width: 980px) {
+  .sidebar { width: 210px; flex-basis: 210px; }
+}
+
+@media print {
+  .searchbar, .tabs { display: none !important; }
+  .report { max-width: none; }
+  .dupgroup, .card, .panel { break-inside: avoid; }
+  /* The one hard-coded colour in this file, and only on paper: base.css already
+     forces black on white for print, and the score must not print pale grey. */
+  .scorebig { color: #000; }
+}
