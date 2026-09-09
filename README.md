@@ -41,9 +41,13 @@ documents it will tell you:
 - **What is missing** — measured against a checklist you can edit, because what
   a business ought to have written down depends on the business.
 
-Every finding names the files it came from. There is no score, no percentage,
-and no maturity rating, because a number invites an argument about the number
-instead of a look at the documents.
+Every finding names the files it came from. No finding is reduced to a single
+number. **The readiness score** weighs five measurements — readable (25),
+current (20), unique (15), covered (25), spread (15) — and lands at one of
+four maturity levels: "In good shape" (80+), "Workable, with real gaps" (60+),
+"Needs work before it can be relied on" (40+), or "Not something the business
+can lean on yet". When a measurement cannot be worked out, it drops out and the
+score comes back out of what remains. Every figure shows its arithmetic.
 
 ## Design notes
 
@@ -52,8 +56,9 @@ instead of a look at the documents.
   beside the app.
 - **`data/` never leaves the machine and is not in this repo.** It is a sqlite
   database of whatever you scanned.
-- **Findings show their arithmetic.** Where the report gives a range it shows
-  how it got there. It will not state a single-point figure for anything.
+- **Findings show their arithmetic.** Each finding names its files and counts.
+  The readiness score is a single number, backed by a table of five weighted
+  measurements. No single-point figure without visible arithmetic.
 - **Nothing is filtered away.** Everything found is kept and ordered. A tool
   that quietly drops what it judged uninteresting narrows what you know without
   telling you.
