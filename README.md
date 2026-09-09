@@ -41,9 +41,12 @@ documents it will tell you:
 - **What is missing** — measured against a checklist you can edit, because what
   a business ought to have written down depends on the business.
 
-Every finding names the files it came from. There is no score, no percentage,
-and no maturity rating, because a number invites an argument about the number
-instead of a look at the documents.
+Every finding names the files it came from. **The readiness score** weighs five
+measurements — readable (25), current (20), unique (15), covered (25), spread (15) — to
+produce one of four maturity levels: "In good shape" (80+), "Workable, with real gaps"
+(60+), "Needs work before it can be relied on" (40+), or "Not something the business can
+lean on yet". Unmeasurable dimensions drop out; the score comes out of what remains (for
+example, 25 instead of 100). Every figure shows its arithmetic.
 
 ## Design notes
 
