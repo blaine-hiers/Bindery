@@ -17,6 +17,7 @@ owner will not trust.
 
 from __future__ import annotations
 
+import math
 import re
 import time
 import zlib
@@ -105,23 +106,63 @@ def _resolve_score_weights(overrides: dict | None):
     for one client and "72 out of 100" for another stop meaning the same
     thing. Normalising back to 100 is how the two stay comparable without
     forbidding the reweighting the ticket asks for.
+
+    The API layer (`app.py`) is the one place a client's raw input arrives, and
+    it rejects anything not a finite, non-negative number before it ever
+    reaches the store. This function guards the same thing again, so calling
+    `analyze()` directly -- a test, a script, anything that skips the API --
+    can never turn one bad weight into a `NaN` score: a key whose override is
+    missing, not a number, or not finite falls back to that key's own default
+    weight rather than being let through.
     """
     if not overrides:
         return SCORE_WEIGHTS
     labels = {key: label for key, label, _ in SCORE_WEIGHTS}
     defaults = {key: weight for key, _, weight in SCORE_WEIGHTS}
-    # A key the client did not mention keeps its default weight rather than
-    # dropping to zero -- setting one weight should not silently zero out the
-    # other four.
-    raw = {key: max(0.0, float(overrides.get(key, defaults[key]) or 0))
-           for key, _, _ in SCORE_WEIGHTS}
+    raw = {}
+    for key, _, _ in SCORE_WEIGHTS:
+        value = overrides.get(key, defaults[key])
+        try:
+            value = float(value)
+        except (TypeError, ValueError):
+            value = defaults[key]
+        if not math.isfinite(value):
+            value = defaults[key]
+        raw[key] = max(0.0, value)
     total = sum(raw.values())
     if not total:
         # Every weight zeroed out is not a usable score band -- fall back to
         # the defaults rather than dividing by zero or scoring nothing at all.
         return SCORE_WEIGHTS
-    scale = 100.0 / total
-    return [(key, labels[key], round(raw[key] * scale, 1)) for key, _, _ in SCORE_WEIGHTS]
+    scaled = _apportion_to_100(raw)
+    return [(key, labels[key], scaled[key]) for key, _, _ in SCORE_WEIGHTS]
+
+
+def _apportion_to_100(raw: dict) -> dict:
+    """Scale `raw` (any non-negative ratios, not all zero) to weights, in
+    tenths of a point, that sum to exactly 100.0.
+
+    Rounding each scaled weight independently to one decimal -- the obvious
+    thing to do, and what this used to do -- does not reliably sum back to
+    100: `{1,1,1,1,2}` scales to 100.1, `{1,1,1}` to 99.9. That silently
+    breaks the whole reason for normalising, which is that `out_of` has to
+    stay the same for every client.
+
+    The largest-remainder method (Hamilton's apportionment) fixes it: convert
+    every weight to its exact share of 1000 tenths, floor each one, then hand
+    the tenths still owed -- there are always fewer than five of them -- one
+    apiece to whichever weights were rounded down the hardest. The result
+    always sums to exactly 1000 tenths, i.e. 100.0 points.
+    """
+    total = sum(raw.values())
+    ideal = {key: value * 1000.0 / total for key, value in raw.items()}
+    floors = {key: int(value) for key, value in ideal.items()}
+    owed = 1000 - sum(floors.values())
+    if owed > 0:
+        by_remainder = sorted(raw, key=lambda key: ideal[key] - floors[key], reverse=True)
+        for key in by_remainder[:owed]:
+            floors[key] += 1
+    return {key: value / 10.0 for key, value in floors.items()}
 
 
 def _weights_are_default(weights) -> bool:

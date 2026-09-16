@@ -17,6 +17,7 @@ moved, or renamed — every file is opened read-only, once.
 
 from __future__ import annotations
 
+import math
 import os
 import subprocess
 import sys
@@ -316,6 +317,12 @@ def update_kb(req: Request):
                     weight = float(weight)
                 except (TypeError, ValueError):
                     raise HttpError(400, f"The weight for {key!r} has to be a number.")
+                # `< 0` alone lets both `Infinity` and `NaN` through -- neither
+                # comparison is true for them, so they read as "not negative".
+                # Reject anything non-finite explicitly, before it is ever
+                # written to the store or reaches the scorer.
+                if not math.isfinite(weight):
+                    raise HttpError(400, f"The weight for {key!r} has to be a finite number.")
                 if weight < 0:
                     raise HttpError(400, f"The weight for {key!r} cannot be negative.")
                 cleaned_weights[key] = weight

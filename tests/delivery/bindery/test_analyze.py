@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import math
 import sys
 import time
 import unittest
@@ -390,6 +391,33 @@ class TestPerClientSettings(unittest.TestCase):
                                                             "spread": 0})
         md = gap.report_markdown("Client", "/tmp", r)
         self.assertIn("changed from the defaults", md.lower())
+
+    def test_normalised_weights_sum_to_exactly_one_hundred(self):
+        """Rounding each scaled weight to one decimal independently does not
+        reliably sum back to 100 -- {1,1,1,1,2} used to land on 100.1 and
+        {1,1,1} (with the other two falling back to their defaults) on 99.9.
+        The largest-remainder apportionment in `_apportion_to_100` has to hold
+        for exactly these ratios, not just the evenly-divisible ones."""
+        cases = [
+            {"readable": 1, "current": 1, "unique": 1, "covered": 1, "spread": 2},
+            {"readable": 1, "current": 1, "unique": 1},
+            # A ratio that scales to repeating decimals (1/9, 2/9, 3/9 ... of 100).
+            {"readable": 1, "current": 2, "unique": 3, "covered": 4, "spread": 5},
+        ]
+        for weights in cases:
+            resolved = gap._resolve_score_weights(weights)
+            total = sum(weight for _, _, weight in resolved)
+            self.assertEqual(total, 100.0, f"{weights} resolved to {resolved} summing to {total}")
+
+    def test_a_non_finite_weight_falls_back_to_that_keys_default(self):
+        """`analyze()` is a public function -- a caller that skips the API's
+        own validation (a test, a script, a future code path) must never be
+        able to turn one bad weight into a NaN score."""
+        for bad in (float("inf"), float("-inf"), float("nan")):
+            resolved = gap._resolve_score_weights({"readable": bad})
+            weights_by_key = {key: weight for key, _, weight in resolved}
+            self.assertEqual(weights_by_key["readable"], 25.0, bad)
+            self.assertTrue(all(math.isfinite(w) for w in weights_by_key.values()), bad)
 
 
 class TestWholeReport(unittest.TestCase):
