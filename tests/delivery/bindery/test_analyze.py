@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import math
 import sys
 import time
 import unittest
@@ -310,6 +311,113 @@ class TestScore(unittest.TestCase):
     def test_band_words_change_with_the_score(self):
         self.assertEqual(gap._band(90), "In good shape")
         self.assertNotEqual(gap._band(90), gap._band(30))
+
+
+class TestPerClientSettings(unittest.TestCase):
+    """near_threshold and score weights are per-KB settings, plumbed through
+    `analyze()` rather than read off a module constant. A KB with no stored
+    settings has to come out bit-identical to today."""
+
+    DOCS = TestScore.DOCS
+
+    def test_a_default_kb_is_bit_identical_to_not_passing_settings_at_all(self):
+        implicit = gap.analyze(self.DOCS, now=NOW)
+        explicit = gap.analyze(self.DOCS, now=NOW, near_threshold=gap.DEFAULT_NEAR_THRESHOLD,
+                               score_weights=None)
+        implicit.pop("generated")
+        explicit.pop("generated")
+        self.assertEqual(implicit, explicit)
+        self.assertTrue(implicit["near_threshold_is_default"])
+        self.assertTrue(implicit["score"]["weights_is_default"])
+
+    def test_a_custom_threshold_changes_which_files_group_together(self):
+        base = (LOREM + " ") * 6
+        edited = base.replace("condenser", "evaporator").replace("technician", "installer")
+        docs = [doc("a.txt", base), doc("b.txt", edited)]
+        loose = gap.analyze(docs, now=NOW, near_threshold=0.4)
+        strict = gap.analyze(docs, now=NOW, near_threshold=0.999)
+        self.assertEqual(loose["duplicates"]["near_group_count"], 1)
+        self.assertEqual(strict["duplicates"]["near_group_count"], 0)
+        self.assertFalse(loose["near_threshold_is_default"])
+
+    def test_custom_weights_change_the_score(self):
+        # All the weight on "readable" and none anywhere else: the score
+        # should collapse to exactly the readable component's own share.
+        weights = {"readable": 100, "current": 0, "unique": 0, "covered": 0, "spread": 0}
+        s = gap.analyze(self.DOCS, now=NOW, score_weights=weights)["score"]
+        self.assertFalse(s["weights_is_default"])
+        self.assertAlmostEqual(s["total"], 75.0, places=1)   # 3 of 4 files opened
+        self.assertEqual(s["out_of"], 100)
+
+    def test_weights_are_normalised_back_to_the_same_hundred_point_total(self):
+        """Whatever ratio a client's weights are set to, the total the score
+        is out of has to stay fixed at 100 -- otherwise two clients' scores
+        are not the same kind of number any more."""
+        lopsided = {"readable": 1, "current": 1, "unique": 1, "covered": 1, "spread": 1}
+        s = gap.analyze(self.DOCS, now=NOW, score_weights=lopsided)["score"]
+        self.assertEqual(s["out_of"], 100)
+        for c in s["components"]:
+            self.assertAlmostEqual(c["weight"], 20.0, places=1)
+
+    def test_weights_missing_from_the_override_fall_back_to_their_default(self):
+        s = gap.analyze(self.DOCS, now=NOW, score_weights={"covered": 50})["score"]
+        by_key = {c["key"]: c for c in s["components"]}
+        # covered went from 25 to 50; the rest keep their relative default
+        # weight, all scaled down together so the total is still 100.
+        self.assertGreater(by_key["covered"]["weight"], by_key["readable"]["weight"])
+        self.assertAlmostEqual(sum(c["weight"] for c in s["components"]), 100.0, places=1)
+
+    def test_all_weights_zeroed_out_falls_back_to_the_defaults(self):
+        s = gap.analyze(self.DOCS, now=NOW,
+                        score_weights={"readable": 0, "current": 0, "unique": 0,
+                                       "covered": 0, "spread": 0})["score"]
+        self.assertTrue(s["weights_is_default"])
+        self.assertEqual(s["out_of"], 100)
+
+    def test_report_flags_a_non_default_threshold(self):
+        r = gap.analyze(self.DOCS, now=NOW, near_threshold=0.4)
+        md = gap.report_markdown("Client", "/tmp", r)
+        self.assertIn("not the default", md.lower())
+        self.assertIn("40%", md)
+
+    def test_report_says_nothing_extra_about_the_default_threshold(self):
+        r = gap.analyze(self.DOCS, now=NOW)
+        md = gap.report_markdown("Client", "/tmp", r)
+        self.assertNotIn("not the default", md.lower())
+
+    def test_report_flags_non_default_weights(self):
+        r = gap.analyze(self.DOCS, now=NOW, score_weights={"readable": 100, "current": 0,
+                                                            "unique": 0, "covered": 0,
+                                                            "spread": 0})
+        md = gap.report_markdown("Client", "/tmp", r)
+        self.assertIn("changed from the defaults", md.lower())
+
+    def test_normalised_weights_sum_to_exactly_one_hundred(self):
+        """Rounding each scaled weight to one decimal independently does not
+        reliably sum back to 100 -- {1,1,1,1,2} used to land on 100.1 and
+        {1,1,1} (with the other two falling back to their defaults) on 99.9.
+        The largest-remainder apportionment in `_apportion_to_100` has to hold
+        for exactly these ratios, not just the evenly-divisible ones."""
+        cases = [
+            {"readable": 1, "current": 1, "unique": 1, "covered": 1, "spread": 2},
+            {"readable": 1, "current": 1, "unique": 1},
+            # A ratio that scales to repeating decimals (1/9, 2/9, 3/9 ... of 100).
+            {"readable": 1, "current": 2, "unique": 3, "covered": 4, "spread": 5},
+        ]
+        for weights in cases:
+            resolved = gap._resolve_score_weights(weights)
+            total = sum(weight for _, _, weight in resolved)
+            self.assertEqual(total, 100.0, f"{weights} resolved to {resolved} summing to {total}")
+
+    def test_a_non_finite_weight_falls_back_to_that_keys_default(self):
+        """`analyze()` is a public function -- a caller that skips the API's
+        own validation (a test, a script, a future code path) must never be
+        able to turn one bad weight into a NaN score."""
+        for bad in (float("inf"), float("-inf"), float("nan")):
+            resolved = gap._resolve_score_weights({"readable": bad})
+            weights_by_key = {key: weight for key, _, weight in resolved}
+            self.assertEqual(weights_by_key["readable"], 25.0, bad)
+            self.assertTrue(all(math.isfinite(w) for w in weights_by_key.values()), bad)
 
 
 class TestWholeReport(unittest.TestCase):

@@ -204,6 +204,108 @@ class TestKbCrud(ApiTestCase):
         self.assertEqual(data["kb"]["checklist"][0]["phrases"], ["ticket", "work order"])
 
 
+class TestAnalysisSettings(ApiTestCase):
+    """near_threshold and score weights are per-KB settings, stored alongside
+    the knowledge base and left out of `analyze()` entirely when absent."""
+
+    def test_a_new_kb_has_no_settings_and_shows_the_defaults(self):
+        kb = self.make_kb()
+        self.assertIsNone(kb["near_threshold"])
+        self.assertIsNone(kb["score_weights"])
+        self.assertEqual(kb["near_threshold_default"], 0.55)
+        self.assertEqual(kb["score_weights_default"]["readable"], 25)
+
+    def test_near_threshold_can_be_set_and_read_back(self):
+        kb = self.make_kb()
+        status, data = call("PUT", f"/api/kbs/{kb['id']}", {"near_threshold": 0.4})
+        self.assertEqual(status, 200)
+        self.assertEqual(data["kb"]["near_threshold"], 0.4)
+
+    def test_near_threshold_out_of_range_is_a_clean_400(self):
+        kb = self.make_kb()
+        status, data = call("PUT", f"/api/kbs/{kb['id']}", {"near_threshold": 1.5})
+        self.assertEqual(status, 400)
+        status, data = call("PUT", f"/api/kbs/{kb['id']}", {"near_threshold": "not a number"})
+        self.assertEqual(status, 400)
+
+    def test_near_threshold_null_resets_to_the_default(self):
+        kb = self.make_kb()
+        call("PUT", f"/api/kbs/{kb['id']}", {"near_threshold": 0.4})
+        status, data = call("PUT", f"/api/kbs/{kb['id']}", {"near_threshold": None})
+        self.assertEqual(status, 200)
+        self.assertIsNone(data["kb"]["near_threshold"])
+
+    def test_score_weights_can_be_set_and_read_back(self):
+        kb = self.make_kb()
+        weights = {"readable": 40, "current": 10, "unique": 10, "covered": 30, "spread": 10}
+        status, data = call("PUT", f"/api/kbs/{kb['id']}", {"score_weights": weights})
+        self.assertEqual(status, 200)
+        self.assertEqual(data["kb"]["score_weights"]["readable"], 40)
+
+    def test_score_weights_must_be_an_object(self):
+        kb = self.make_kb()
+        status, data = call("PUT", f"/api/kbs/{kb['id']}", {"score_weights": [1, 2, 3]})
+        self.assertEqual(status, 400)
+
+    def test_a_negative_weight_is_a_clean_400(self):
+        kb = self.make_kb()
+        status, data = call("PUT", f"/api/kbs/{kb['id']}", {"score_weights": {"readable": -5}})
+        self.assertEqual(status, 400)
+
+    def test_a_non_finite_weight_is_a_clean_400_and_is_never_stored(self):
+        # `< 0` alone lets Infinity and NaN through -- neither comparison is
+        # true for them -- so this has to be checked on its own, and the
+        # rejected value must never reach the KB that is already on disk.
+        kb = self.make_kb()
+        for bad in (float("inf"), float("-inf"), float("nan")):
+            status, data = call("PUT", f"/api/kbs/{kb['id']}",
+                                {"score_weights": {"readable": bad}})
+            self.assertEqual(status, 400, f"{bad} should have been rejected")
+        status, data = call("GET", f"/api/kbs/{kb['id']}")
+        self.assertEqual(status, 200)
+        self.assertIsNone(data["kb"]["score_weights"])
+
+    def test_an_unknown_weight_key_is_quietly_dropped(self):
+        kb = self.make_kb()
+        status, data = call("PUT", f"/api/kbs/{kb['id']}",
+                            {"score_weights": {"readable": 40, "made_up_key": 999}})
+        self.assertEqual(status, 200)
+        self.assertNotIn("made_up_key", data["kb"]["score_weights"])
+
+    def test_settings_change_the_report_the_kb_produces(self):
+        kb = self.make_kb()
+        call("POST", f"/api/kbs/{kb['id']}/scan", {"folder": self.root})
+        wait_for_scan(kb["id"])
+        status, default_report = call("GET", f"/api/kbs/{kb['id']}/report")
+        self.assertEqual(status, 200)
+        self.assertTrue(default_report["report"]["near_threshold_is_default"])
+
+        call("PUT", f"/api/kbs/{kb['id']}", {"near_threshold": 0.99})
+        status, custom_report = call("GET", f"/api/kbs/{kb['id']}/report")
+        self.assertEqual(status, 200)
+        self.assertFalse(custom_report["report"]["near_threshold_is_default"])
+        self.assertEqual(custom_report["report"]["near_threshold"], 0.99)
+
+    def test_settings_survive_a_restart(self):
+        kb = self.make_kb()
+        weights = {"readable": 40, "current": 10, "unique": 10, "covered": 30, "spread": 10}
+        status, data = call("PUT", f"/api/kbs/{kb['id']}",
+                            {"near_threshold": 0.4, "score_weights": weights})
+        self.assertEqual(status, 200)
+
+        # Reopen the same database file cold, the way a process restart would,
+        # rather than trusting whatever is still sitting in memory.
+        from store import Store
+        db_path = Path(os.environ["BINDERY_DATA"]) / "kb.db"
+        fresh = Store(db_path)
+        try:
+            stored = fresh.get("kbs", kb["id"])
+        finally:
+            fresh.close()
+        self.assertEqual(stored["near_threshold"], 0.4)
+        self.assertEqual(stored["score_weights"]["readable"], 40)
+
+
 class TestScanning(ApiTestCase):
     def test_a_folder_that_does_not_exist_is_a_clean_400(self):
         kb = self.make_kb()

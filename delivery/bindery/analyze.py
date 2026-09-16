@@ -17,6 +17,7 @@ owner will not trust.
 
 from __future__ import annotations
 
+import math
 import re
 import time
 import zlib
@@ -24,7 +25,7 @@ from collections import Counter, defaultdict
 
 __all__ = [
     "analyze", "report_markdown", "DEFAULT_CHECKLIST", "SCORE_WEIGHTS",
-    "shingles", "minhash", "jaccard",
+    "DEFAULT_NEAR_THRESHOLD", "shingles", "minhash", "jaccard",
 ]
 
 YEAR = 365.25 * 24 * 3600
@@ -85,6 +86,89 @@ SCORE_WEIGHTS = [
     ("covered",   "Things a business your size should have written down", 25),
     ("spread",    "Knowledge spread out rather than piled in one place", 15),
 ]
+
+# The similarity cut a near-duplicate group has to clear. A knowledge base
+# with no stored settings uses exactly this number — see `analyze()`.
+DEFAULT_NEAR_THRESHOLD = 0.55
+
+
+def _resolve_score_weights(overrides: dict | None):
+    """Turn a per-client `{key: weight}` override into the `(key, label, weight)`
+    rows the scorer uses, scaled back to the same 100-point total as the
+    built-in weights.
+
+    Absent or empty `overrides` returns `SCORE_WEIGHTS` itself, untouched --
+    that is what keeps a knowledge base with no stored settings bit-identical
+    to today.
+
+    A client is free to say "duplicates matter more to me than staleness", but
+    the *scale* the score is reported on has to stay fixed, or "72 out of 100"
+    for one client and "72 out of 100" for another stop meaning the same
+    thing. Normalising back to 100 is how the two stay comparable without
+    forbidding the reweighting the ticket asks for.
+
+    The API layer (`app.py`) is the one place a client's raw input arrives, and
+    it rejects anything not a finite, non-negative number before it ever
+    reaches the store. This function guards the same thing again, so calling
+    `analyze()` directly -- a test, a script, anything that skips the API --
+    can never turn one bad weight into a `NaN` score: a key whose override is
+    missing, not a number, or not finite falls back to that key's own default
+    weight rather than being let through.
+    """
+    if not overrides:
+        return SCORE_WEIGHTS
+    labels = {key: label for key, label, _ in SCORE_WEIGHTS}
+    defaults = {key: weight for key, _, weight in SCORE_WEIGHTS}
+    raw = {}
+    for key, _, _ in SCORE_WEIGHTS:
+        value = overrides.get(key, defaults[key])
+        try:
+            value = float(value)
+        except (TypeError, ValueError):
+            value = defaults[key]
+        if not math.isfinite(value):
+            value = defaults[key]
+        raw[key] = max(0.0, value)
+    total = sum(raw.values())
+    if not total:
+        # Every weight zeroed out is not a usable score band -- fall back to
+        # the defaults rather than dividing by zero or scoring nothing at all.
+        return SCORE_WEIGHTS
+    scaled = _apportion_to_100(raw)
+    return [(key, labels[key], scaled[key]) for key, _, _ in SCORE_WEIGHTS]
+
+
+def _apportion_to_100(raw: dict) -> dict:
+    """Scale `raw` (any non-negative ratios, not all zero) to weights, in
+    tenths of a point, that sum to exactly 100.0.
+
+    Rounding each scaled weight independently to one decimal -- the obvious
+    thing to do, and what this used to do -- does not reliably sum back to
+    100: `{1,1,1,1,2}` scales to 100.1, `{1,1,1}` to 99.9. That silently
+    breaks the whole reason for normalising, which is that `out_of` has to
+    stay the same for every client.
+
+    The largest-remainder method (Hamilton's apportionment) fixes it: convert
+    every weight to its exact share of 1000 tenths, floor each one, then hand
+    the tenths still owed -- there are always fewer than five of them -- one
+    apiece to whichever weights were rounded down the hardest. The result
+    always sums to exactly 1000 tenths, i.e. 100.0 points.
+    """
+    total = sum(raw.values())
+    ideal = {key: value * 1000.0 / total for key, value in raw.items()}
+    floors = {key: int(value) for key, value in ideal.items()}
+    owed = 1000 - sum(floors.values())
+    if owed > 0:
+        by_remainder = sorted(raw, key=lambda key: ideal[key] - floors[key], reverse=True)
+        for key in by_remainder[:owed]:
+            floors[key] += 1
+    return {key: value / 10.0 for key, value in floors.items()}
+
+
+def _weights_are_default(weights) -> bool:
+    defaults = {key: weight for key, _, weight in SCORE_WEIGHTS}
+    return all(abs(weight - defaults[key]) < 0.05 for key, _, weight in weights)
+
 
 # Names Office writes when nobody set one. Telling an owner "most of your files
 # were last saved by Administrator" is not a people risk, it is a default.
@@ -268,8 +352,8 @@ def _near_duplicate_groups(docs, threshold: float):
 
 # ---------------------------------------------------------------- the report
 
-def analyze(docs, *, checklist=None, now=None, near_threshold: float = 0.55,
-            top_n: int = 12, partial: bool = False) -> dict:
+def analyze(docs, *, checklist=None, now=None, near_threshold: float = DEFAULT_NEAR_THRESHOLD,
+            top_n: int = 12, partial: bool = False, score_weights: dict | None = None) -> dict:
     """Take every ingest record for one knowledge base and produce the report.
 
     `docs` want the keys `doc_id, rel, name, folder, ext, size, mtime, status,
@@ -279,6 +363,14 @@ def analyze(docs, *, checklist=None, now=None, near_threshold: float = 0.55,
     is a report on part of the folder. It gets said at the top, in the headlines
     and in the exported Markdown, because a half-read folder that reads as a
     finished report is the worst thing this file could produce.
+
+    `near_threshold` and `score_weights` are per-client settings, not module
+    constants — the caller (the app, or a test) is the one deciding whether a
+    knowledge base has its own settings or should behave exactly as if it did
+    not. `score_weights` is `{key: weight}` for any of the five score keys;
+    missing keys fall back to the built-in weight for that key, and the whole
+    set is scaled to the same 100-point total `SCORE_WEIGHTS` uses — see
+    `_resolve_score_weights`.
     """
     now = now if now is not None else time.time()
     # `None` means "use the built-in list". An empty list means the owner turned
@@ -585,8 +677,10 @@ def analyze(docs, *, checklist=None, now=None, near_threshold: float = 0.55,
                     "checklist could still be inside a file we could not read"),
         "spread": "could not be measured — nothing here opened, so there is nothing to place",
     }
+    weights = _resolve_score_weights(score_weights)
+    weights_is_default = _weights_are_default(weights)
     components, total_points, out_of = [], 0.0, 0
-    for key, label, weight in SCORE_WEIGHTS:
+    for key, label, weight in weights:
         if not can[key]:
             components.append({"key": key, "label": label, "weight": weight,
                                "raw_pct": None, "points": None, "measured": False,
@@ -602,6 +696,11 @@ def analyze(docs, *, checklist=None, now=None, near_threshold: float = 0.55,
     unmeasured = [c["label"] for c in components if not c["measured"]]
     note = ("Add the points column and you get the score. Nothing is hidden and "
             "nothing is weighted behind your back.")
+    if not weights_is_default:
+        note += (" This client's weights have been changed from the defaults "
+                 "(readable 25, current 20, unique 15, covered 25, spread 15), "
+                 "scaled back to the same 100-point total so the score still "
+                 "means the same thing it would for any other client.")
     if unmeasured:
         note += (" " + str(len(unmeasured)) + " of the five measurements could not be "
                  "worked out on this folder, so the score is out of "
@@ -614,12 +713,16 @@ def analyze(docs, *, checklist=None, now=None, near_threshold: float = 0.55,
                 "There was nothing here to score",
         "unmeasured": unmeasured,
         "note": note,
+        "weights_is_default": weights_is_default,
     }
+
+    near_threshold_is_default = abs(near_threshold - DEFAULT_NEAR_THRESHOLD) < 1e-9
 
     return {
         "generated": int(time.time() * 1000),
         "partial": bool(partial),
         "near_threshold": near_threshold,
+        "near_threshold_is_default": near_threshold_is_default,
         "counts": counts,
         "duplicates": duplicates,
         "stale": stale,
@@ -796,16 +899,27 @@ def report_markdown(kb_name: str, folder: str, r: dict, when: str | None = None)
 
     d = r["duplicates"]
     L += ["## Copies that disagree", ""]
+    # The threshold is said before the count, and every time — a client run at
+    # a non-default cut has to look different from one run at the default even
+    # when neither one happens to have found anything, or the setting is not
+    # really traceable.
+    L.append(f"\"Near-copy\" means at least "
+             f"{int(r.get('near_threshold', DEFAULT_NEAR_THRESHOLD) * 100)}% "
+             f"of the five-word runs in the two files are the same — in practice a "
+             f"document that was saved, edited, and saved again under a new name.")
+    if not r.get("near_threshold_is_default", True):
+        L.append(f"**This is not the default.** Most clients are compared at "
+                 f"{int(DEFAULT_NEAR_THRESHOLD * 100)}%; this one has been set to "
+                 f"{int(r.get('near_threshold', DEFAULT_NEAR_THRESHOLD) * 100)}%, so its "
+                 f"near-duplicate groups are not directly comparable to a report run at "
+                 f"the default.")
+    L.append("")
     if not (d["exact_groups"] or d["near_groups"]):
         L.append("No duplicate documents found.")
     else:
         L.append(f"{d['files_involved']} files ({d['share']}% of what we could read) are "
                  f"copies or near-copies. That is {d['wasted_copies']} extra copies. "
                  f"The question is never how many copies — it is which one is right.")
-        L.append("")
-        L.append(f"\"Near-copy\" means at least {int(r.get('near_threshold', 0.55) * 100)}% "
-                 f"of the five-word runs in the two files are the same — in practice a "
-                 f"document that was saved, edited, and saved again under a new name.")
         L.append("")
         for g in (d["exact_groups"][:6] + d["near_groups"][:6]):
             kind = "identical" if g["kind"] == "exact" else f"{int(g['similarity'] * 100)}% the same"
