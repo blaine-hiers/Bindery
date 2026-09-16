@@ -184,6 +184,13 @@ def _kb_view(kb: dict) -> dict:
         "checklist": kb.get("checklist") or _default_checklist(),
         "scanning": bool(job and job.snapshot()["running"]),
         "partial": bool(kb.get("partial")),
+        # `None` means "no setting saved for this client — use the default".
+        # The default itself rides along so the UI can label it as one
+        # instead of the client having to know the number by heart.
+        "near_threshold": kb.get("near_threshold"),
+        "near_threshold_default": gap.DEFAULT_NEAR_THRESHOLD,
+        "score_weights": kb.get("score_weights"),
+        "score_weights_default": {key: weight for key, _, weight in gap.SCORE_WEIGHTS},
     }
 
 
@@ -204,7 +211,15 @@ def _report_for(kb: dict) -> dict:
     checklist = kb.get("checklist")
     if checklist is None:
         checklist = _default_checklist()
-    result = gap.analyze(docs, checklist=checklist, partial=bool(kb.get("partial")))
+    # A knowledge base with no stored `near_threshold` / `score_weights` must
+    # not pass anything for them, so `analyze` falls through to its own
+    # defaults and behaves bit-identically to a build with no settings at all.
+    settings = {}
+    if kb.get("near_threshold") is not None:
+        settings["near_threshold"] = float(kb["near_threshold"])
+    if kb.get("score_weights"):
+        settings["score_weights"] = kb["score_weights"]
+    result = gap.analyze(docs, checklist=checklist, partial=bool(kb.get("partial")), **settings)
     REPORT_CACHE[kb_id] = (stamp, result)
     return result
 
@@ -269,6 +284,46 @@ def update_kb(req: Request):
                 "on": bool(item.get("on", True)),
             })
         kb["checklist"] = cleaned
+        REPORT_CACHE.pop(kb["id"], None)
+    if "near_threshold" in data:
+        raw = data.get("near_threshold")
+        if raw is None:
+            kb["near_threshold"] = None                  # back to the default
+        else:
+            try:
+                value = float(raw)
+            except (TypeError, ValueError):
+                raise HttpError(400, "The near-duplicate threshold has to be a number.")
+            if not (0.05 <= value <= 1.0):
+                raise HttpError(400, "The near-duplicate threshold has to be between "
+                                     "5% and 100%.")
+            kb["near_threshold"] = value
+        REPORT_CACHE.pop(kb["id"], None)
+    if "score_weights" in data:
+        raw = data.get("score_weights")
+        if raw is None:
+            kb["score_weights"] = None                    # back to the defaults
+        else:
+            if not isinstance(raw, dict):
+                raise HttpError(400, "The score weights have to be an object of "
+                                     "measurement name to weight.")
+            known = {key for key, _, _ in gap.SCORE_WEIGHTS}
+            cleaned_weights = {}
+            for key, weight in raw.items():
+                if key not in known:
+                    continue
+                try:
+                    weight = float(weight)
+                except (TypeError, ValueError):
+                    raise HttpError(400, f"The weight for {key!r} has to be a number.")
+                if weight < 0:
+                    raise HttpError(400, f"The weight for {key!r} cannot be negative.")
+                cleaned_weights[key] = weight
+            # A key left out keeps its default weight (see `_resolve_score_weights`),
+            # and every weight at zero collapses back to the defaults there too --
+            # nothing further to reject here. An object with nothing recognisable
+            # in it is the same as sending null.
+            kb["score_weights"] = cleaned_weights or None
         REPORT_CACHE.pop(kb["id"], None)
     store.save(KBS, kb)
     return {"kb": _kb_view(kb)}

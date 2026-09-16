@@ -19,11 +19,24 @@
     lastWords: []
   };
 
+  // The five score measurements, in the order the readiness score shows
+  // them. Only the weight is a per-client setting; what each one means is
+  // fixed, so the label lives here rather than round-tripping through the
+  // server on every keystroke.
+  var SCORE_KEYS = [
+    ["readable", "Files you can actually open and search"],
+    ["current", "Files touched in the last three years"],
+    ["unique", "Files that are not a copy of another file"],
+    ["covered", "Things a business your size should have written down"],
+    ["spread", "Knowledge spread out rather than piled in one place"]
+  ];
+
   var saveState = $("#saveState");
   var save = UI.autosave(function () {
     if (!S.kb) return;
     return api.put("/api/kbs/" + S.kb.id, {
-      name: S.kb.name, notes: S.kb.notes, folder: S.kb.folder, checklist: S.kb.checklist
+      name: S.kb.name, notes: S.kb.notes, folder: S.kb.folder, checklist: S.kb.checklist,
+      near_threshold: S.kb.near_threshold, score_weights: S.kb.score_weights
     });
   }, saveState);
 
@@ -379,6 +392,7 @@
     else if (S.tab === "report") renderReport(pane);
     else if (S.tab === "files") renderFiles(pane);
     else if (S.tab === "checklist") renderChecklist(pane);
+    else if (S.tab === "settings") renderSettings(pane);
   }
 
   // ------------------------------------------------------------ search tab
@@ -1055,6 +1069,97 @@
                : null,
       el("div", { class: "ph" }, [el("label", { text: "Words that count as finding it" }), phrases])
     ]);
+  }
+
+  // ------------------------------------------------------------ settings tab
+
+  function renderSettings(pane) {
+    var kb = S.kb;
+    var defaultPct = Math.round((kb.near_threshold_default || 0.55) * 100);
+    var hasCustomThreshold = kb.near_threshold !== null && kb.near_threshold !== undefined;
+    var thresholdPct = Math.round((hasCustomThreshold ? kb.near_threshold
+                                                        : kb.near_threshold_default) * 100);
+
+    pane.appendChild(el("div", { class: "card" }, [
+      el("header", {}, [el("h2", { text: "Analysis settings" })]),
+      el("p", { class: "muted small",
+        text: "These change how the gap report is worked out for this client, and only " +
+              "this client. Every export says plainly when a client is not using the " +
+              "defaults, so a number here is always traceable." })
+    ]));
+
+    // ---- near-duplicate threshold ----
+    var tCard = el("div", { class: "card" }, [
+      el("header", {}, [el("h3", { text: "Near-duplicate threshold" })]),
+      el("p", { class: "muted small",
+        text: "How much of two documents' five-word runs have to match before they count " +
+              "as near-copies. The default (" + defaultPct + "%) is a reasonable middle " +
+              "ground: a client whose files are all built from one template needs a " +
+              "higher number to avoid flagging the template itself; a client with " +
+              "freeform documents needs a lower one to catch real copies." })
+    ]);
+    var tInput = el("input", { type: "number", min: "5", max: "100", step: "1",
+                               value: String(thresholdPct) });
+    var tLabel = el("span", { class: "muted small",
+      text: hasCustomThreshold ? "custom for this client" : "default" });
+    tInput.addEventListener("input", function () {
+      var v = parseFloat(tInput.value);
+      if (!isFinite(v)) return;
+      v = Math.max(5, Math.min(100, v));
+      S.kb.near_threshold = v / 100;
+      tLabel.textContent = "custom for this client";
+      S.report = null; save();
+    });
+    tCard.appendChild(el("div", { class: "flex" }, [tInput, el("span", { text: "%" }), tLabel]));
+    tCard.appendChild(el("div", { class: "flex mt" }, [
+      el("button", {
+        class: "btn ghost", onclick: function () {
+          S.kb.near_threshold = null; S.report = null; save(); render();
+        }
+      }, ["Use the default (" + defaultPct + "%)"])
+    ]));
+    pane.appendChild(tCard);
+
+    // ---- readiness score weights ----
+    var hasCustomWeights = !!kb.score_weights;
+    var wCard = el("div", { class: "card" }, [
+      el("header", {}, [el("h3", { text: "Readiness score weights" })]),
+      el("p", { class: "muted small",
+        text: "The five measurements behind the readiness score, and how many of the " +
+              "100 points each is worth by default. Change the balance for this client " +
+              "without losing the ability to compare their score to anyone else's — " +
+              "whatever you set here is scaled back to the same 100-point total." })
+    ]);
+    var weightLabel = el("span", { class: "muted small",
+      text: hasCustomWeights ? "custom for this client" : "default" });
+    SCORE_KEYS.forEach(function (pair) {
+      var key = pair[0], label = pair[1];
+      var current = (kb.score_weights && kb.score_weights[key] != null)
+        ? kb.score_weights[key] : kb.score_weights_default[key];
+      var input = el("input", { type: "number", min: "0", step: "1", value: String(current) });
+      input.addEventListener("input", function () {
+        var v = parseFloat(input.value);
+        if (!isFinite(v) || v < 0) return;
+        var w = Object.assign({}, kb.score_weights || kb.score_weights_default);
+        w[key] = v;
+        S.kb.score_weights = w;
+        weightLabel.textContent = "custom for this client";
+        S.report = null; save();
+      });
+      wCard.appendChild(el("div", { class: "flex", style: { marginTop: "6px" } }, [
+        el("span", { style: { flex: "1" }, text: label }), input,
+        el("span", { class: "muted small", text: "of 100" })
+      ]));
+    });
+    wCard.appendChild(el("div", { class: "flex mt" }, [
+      el("button", {
+        class: "btn ghost", onclick: function () {
+          S.kb.score_weights = null; S.report = null; save(); render();
+        }
+      }, ["Use the defaults"]),
+      weightLabel
+    ]));
+    pane.appendChild(wCard);
   }
 
   // ------------------------------------------------------------ inspector
