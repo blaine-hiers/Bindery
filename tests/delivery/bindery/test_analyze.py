@@ -203,6 +203,50 @@ class TestUnreadable(unittest.TestCase):
         u = gap.analyze(self.DOCS, now=NOW)["unreadable"]
         self.assertEqual(u["share"], 60.0)
 
+    def test_unreadable_grouped_by_folder_with_count_and_share(self):
+        docs = [
+            doc("Scans/scan1.pdf", status="unreadable", reason="no text inside — this is a scan"),
+            doc("Scans/scan2.pdf", status="unreadable", reason="no text inside — this is a scan"),
+            doc("Locked/locked.pdf", status="unreadable", reason="the PDF is locked with a password"),
+            doc("good.txt", LOREM),
+        ]
+        u = gap.analyze(docs, now=NOW)["unreadable"]
+        self.assertEqual(u["count"], 3)
+        self.assertEqual(len(u["by_folder"]), 2)
+        # Should be ordered by count descending
+        self.assertEqual(u["by_folder"][0]["folder"], "Scans")
+        self.assertEqual(u["by_folder"][0]["count"], 2)
+        self.assertEqual(u["by_folder"][0]["share"], 66.7)
+        self.assertEqual(u["by_folder"][1]["folder"], "Locked")
+        self.assertEqual(u["by_folder"][1]["count"], 1)
+        self.assertEqual(u["by_folder"][1]["share"], 33.3)
+
+    def test_by_folder_includes_byte_totals_and_examples(self):
+        docs = [
+            doc("Scans/scan1.pdf", status="unreadable", reason="no text inside — this is a scan", size=1000),
+            doc("Scans/scan2.pdf", status="unreadable", reason="no text inside — this is a scan", size=2000),
+            doc("Locked/locked.pdf", status="unreadable", reason="the PDF is locked with a password", size=500),
+        ]
+        u = gap.analyze(docs, now=NOW)["unreadable"]
+        scans = u["by_folder"][0]
+        self.assertEqual(scans["bytes"], 3000)
+        self.assertEqual(len(scans["examples"]), 2)
+        locked = u["by_folder"][1]
+        self.assertEqual(locked["bytes"], 500)
+        self.assertEqual(len(locked["examples"]), 1)
+
+    def test_unreadable_with_empty_folder_field(self):
+        docs = [
+            doc("scan.pdf", status="unreadable", reason="no text inside — this is a scan"),
+            doc("Scans/scan2.pdf", status="unreadable", reason="no text inside — this is a scan"),
+        ]
+        u = gap.analyze(docs, now=NOW)["unreadable"]
+        self.assertEqual(len(u["by_folder"]), 2)
+        # One should be "(top level)" for the file with no folder
+        folders = [row["folder"] for row in u["by_folder"]]
+        self.assertIn("(top level)", folders)
+        self.assertIn("Scans", folders)
+
 
 class TestCoverage(unittest.TestCase):
     CHECK = [

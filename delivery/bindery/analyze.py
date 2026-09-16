@@ -443,6 +443,8 @@ def analyze(docs, *, checklist=None, now=None, near_threshold: float = 0.55,
     # ---- unreadable --------------------------------------------------
     by_reason = Counter((d.get("reason") or "no reason recorded") for d in unreadable)
     by_ext = Counter(d["ext"] or "(no extension)" for d in unreadable)
+    by_folder = Counter(d.get("folder") or "(top level)" for d in unreadable)
+    unreadable_bytes = sum(int(d.get("size") or 0) for d in unreadable)
     unreadable_report = {
         "count": len(unreadable),
         "share": _pct(len(unreadable), total),
@@ -452,7 +454,12 @@ def analyze(docs, *, checklist=None, now=None, near_threshold: float = 0.55,
                           "no reason recorded") == reason][:5]}
             for reason, n in by_reason.most_common()],
         "by_ext": [{"ext": e, "count": n} for e, n in by_ext.most_common(10)],
-        "bytes": sum(int(d.get("size") or 0) for d in unreadable),
+        "by_folder": [
+            {"folder": folder, "count": n, "share": _pct(n, len(unreadable)),
+             "bytes": sum(int(d.get("size") or 0) for d in unreadable if (d.get("folder") or "(top level)") == folder),
+             "examples": [_slim(d) for d in unreadable if (d.get("folder") or "(top level)") == folder][:5]}
+            for folder, n in by_folder.most_common()],
+        "bytes": unreadable_bytes,
     }
     skipped_report = {
         "count": len(skipped),
@@ -792,6 +799,13 @@ def report_markdown(kb_name: str, folder: str, r: dict, when: str | None = None)
         for row in u["by_reason"]:
             eg = ", ".join(e["name"] for e in row["examples"][:2])
             L.append(f"| {row['reason']} | {row['count']} | {eg} |")
+        if u["by_folder"]:
+            L += ["", "### Where they are", ""]
+            L += ["| Folder | Count | Share | Size | Examples |", "|---|---|---|---|---|"]
+            for row in u["by_folder"]:
+                eg = ", ".join(e["name"] for e in row["examples"][:2])
+                L.append(f"| `{row['folder']}` | {row['count']} | {row['share']}% | "
+                         f"{row['bytes']:,} bytes | {eg} |")
     L.append("")
 
     d = r["duplicates"]
