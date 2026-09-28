@@ -785,6 +785,31 @@
           }))
         ])
       ]));
+      if (u.by_folder && u.by_folder.length) {
+        un.appendChild(el("div", { class: "mt small muted", text: "Where they are:" }));
+        un.appendChild(el("div", { class: "panel" }, [
+          el("table", { class: "grid" }, [
+            el("thead", {}, [el("tr", {}, [el("th", { text: "Folder" }),
+                                           el("th", { class: "num", text: "Count" }),
+                                           el("th", { class: "num", text: "Share" }),
+                                           el("th", { class: "num", text: "Size" }),
+                                           el("th", { text: "For example" })])]),
+            el("tbody", {}, u.by_folder.map(function (row) {
+              return el("tr", {}, [
+                el("td", { text: "`" + row.folder + "`", class: "code" }),
+                el("td", { class: "num", text: UI.fmtInt(row.count) }),
+                el("td", { class: "num", text: row.share.toFixed(1) + "%" }),
+                el("td", { class: "num", text: bytes(row.bytes) }),
+                el("td", { class: "small muted" },
+                   row.examples.slice(0, 3).map(function (e) {
+                     return el("div", { style: { cursor: "pointer" }, text: e.rel,
+                       onclick: function () { openDoc(e.doc_id); } });
+                   }))
+              ]);
+            }))
+          ])
+        ]));
+      }
     }
     if (r.skipped.count) {
       un.appendChild(el("div", { class: "muted small mt" }, [
