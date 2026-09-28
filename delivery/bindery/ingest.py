@@ -796,16 +796,19 @@ def extract_pdf(data: bytes) -> tuple[str, str | None]:
         if len(fallback.split()) > len(text.split()):
             text = fallback
 
-    if not text:
+    if not _has_real_words(text):
         # A PDF whose page objects are all there but hold no letters is a scan.
         # A PDF that stops halfway through is a damaged file, and telling an
-        # owner it is "a scan" sends them hunting for a piece of paper that was
-        # never involved.
+        # owner it is "a scan" (or a font problem) sends them hunting for
+        # something that was never involved. A truncated transfer often still
+        # yields a handful of garbage characters from its cut-off content
+        # stream, so this has to catch that case too, not just an empty
+        # `text` — hence checking `_has_real_words` here rather than `not text`.
         if not _looks_complete(data):
             return "", ("the file is cut short — it stops part-way through, so most "
                         "PDF readers will refuse it too")
-        return "", "no text inside — this is a scan or a picture of a document"
-    if not _has_real_words(text):
+        if not text:
+            return "", "no text inside — this is a scan or a picture of a document"
         return "", ("the text could not be decoded — the PDF uses a font with no "
                     "readable character map, or it is a scan")
     return text, None
