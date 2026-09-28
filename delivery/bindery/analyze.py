@@ -683,45 +683,85 @@ def _band(score: float) -> str:
 
 def _headlines(counts, duplicates, stale, orphans, unreadable, coverage, conc,
                partial: bool = False) -> list[dict]:
-    """The three or four lines you would actually say out loud in the room."""
+    """Every finding worth saying out loud, worst first.
+
+    Each entry carries `severity` (a number) and `severity_how` (the
+    arithmetic behind it), so the ordering is inspectable rather than a
+    hand-ranked guess. `partial` is not a finding competing on severity — a
+    part read makes every other number provisional, so it is pinned first
+    regardless of its score. Nothing is capped: a folder that trips every
+    check gets every headline, in severity order.
+    """
+    scored = []
+    if unreadable["count"]:
+        scored.append({"kind": "bad", "text":
+                       f"{unreadable['count']} files ({unreadable['share']}% of everything) "
+                       f"cannot be opened or searched by anything — including your own staff.",
+                       "severity": unreadable["share"], "severity_how":
+                       f"{unreadable['count']} of {counts['total']} files ({unreadable['share']}%) "
+                       f"can't be opened by anything"})
+    if duplicates["wasted_copies"]:
+        biggest = (duplicates["exact_groups"] or duplicates["near_groups"] or [None])[0]
+        extra = ""
+        if biggest:
+            extra = f" The worst is {len(biggest['files'])} copies of {biggest['files'][0]['name']}."
+        scored.append({"kind": "warn", "text":
+                       f"{duplicates['files_involved']} files are copies or near-copies of "
+                       f"each other.{extra} When they disagree, nobody knows which one is right.",
+                       "severity": duplicates["share"], "severity_how":
+                       f"{duplicates['files_involved']} of {counts['readable']} readable files "
+                       f"({duplicates['share']}%) are copies or near-copies of each other"})
+    if stale["over_3y"]:
+        scored.append({"kind": "warn", "text":
+                       f"{stale['over_3y']} files ({stale['share_over_3y']}% of what we could "
+                       f"read) have not been touched in over three years.",
+                       "severity": stale["share_over_3y"], "severity_how":
+                       f"{stale['over_3y']} of {counts['readable']} readable files "
+                       f"({stale['share_over_3y']}%) haven't been touched in 3+ years"})
+    if coverage["missing"] and coverage.get("measured", True):
+        names = ", ".join(_uncap(m["label"]) for m in coverage["missing"][:3])
+        missing_pct = _pct(len(coverage["missing"]), coverage["checked"])
+        scored.append({"kind": "bad", "text":
+                       f"{len(coverage['missing'])} things a business your size normally has "
+                       f"written down are missing — starting with {names}.",
+                       "severity": missing_pct, "severity_how":
+                       f"{len(coverage['missing'])} of {coverage['checked']} things checked for "
+                       f"are missing ({missing_pct}%)"})
+    if conc["top_folder_share"] >= 50:
+        over_by = round(conc["top_folder_share"] - 50, 1)
+        scored.append({"kind": "warn", "text":
+                       f"{conc['top_folder_share']}% of everything sits in one folder "
+                       f"(\"{conc['top_folder']}\").",
+                       "severity": conc["top_folder_share"], "severity_how":
+                       f"{conc['top_folder_share']}% in one folder — over the 50% line by "
+                       f"{over_by} points"})
+    if orphans["unreferenced_count"]:
+        scored.append({"kind": "info", "text":
+                       f"{orphans['unreferenced_count']} of the {orphans['judged_count']} files "
+                       f"we could check are not named in any other document. Nothing points at "
+                       f"them, so nobody finds them.",
+                       "severity": orphans["unreferenced_share"], "severity_how":
+                       f"{orphans['unreferenced_count']} of {orphans['judged_count']} checkable "
+                       f"files ({orphans['unreferenced_share']}%) aren't named in any other "
+                       f"document"})
+    scored.sort(key=lambda h: -h["severity"])
+
     out = []
     if partial:
         out.append({"kind": "bad", "text":
                     f"The read was stopped early, so this covers only the "
                     f"{counts['total']} files that had been opened by then — not the "
                     f"whole folder. Read it again to the end before showing this to "
-                    f"anyone."})
-    if unreadable["count"]:
-        out.append({"kind": "bad", "text":
-                    f"{unreadable['count']} files ({unreadable['share']}% of everything) "
-                    f"cannot be opened or searched by anything — including your own staff."})
-    if duplicates["wasted_copies"]:
-        biggest = (duplicates["exact_groups"] or duplicates["near_groups"] or [None])[0]
-        extra = ""
-        if biggest:
-            extra = f" The worst is {len(biggest['files'])} copies of {biggest['files'][0]['name']}."
-        out.append({"kind": "warn", "text":
-                    f"{duplicates['files_involved']} files are copies or near-copies of "
-                    f"each other.{extra} When they disagree, nobody knows which one is right."})
-    if stale["over_3y"]:
-        out.append({"kind": "warn", "text":
-                    f"{stale['over_3y']} files ({stale['share_over_3y']}% of what we could "
-                    f"read) have not been touched in over three years."})
-    if coverage["missing"] and coverage.get("measured", True):
-        names = ", ".join(_uncap(m["label"]) for m in coverage["missing"][:3])
-        out.append({"kind": "bad", "text":
-                    f"{len(coverage['missing'])} things a business your size normally has "
-                    f"written down are missing — starting with {names}."})
-    if conc["top_folder_share"] >= 50:
-        out.append({"kind": "warn", "text":
-                    f"{conc['top_folder_share']}% of everything sits in one folder "
-                    f"(\"{conc['top_folder']}\")."})
-    if orphans["unreferenced_count"]:
-        out.append({"kind": "info", "text":
-                    f"{orphans['unreferenced_count']} of the {orphans['judged_count']} files "
-                    f"we could check are not named in any other document. Nothing points at "
-                    f"them, so nobody finds them."})
-    return out[:5]
+                    f"anyone.",
+                    # Its own raw severity is irrelevant — a part read is a
+                    # precondition for reading anything else, not a finding
+                    # competing on magnitude, so it is pinned first below
+                    # rather than sorted in with everything else.
+                    "severity": 0.0, "severity_how":
+                    "not scored against the other findings — a part read is a "
+                    "precondition, so it is always shown first"})
+    out.extend(scored)
+    return out
 
 
 # ---------------------------------------------------------------- markdown export
