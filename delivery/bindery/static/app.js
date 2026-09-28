@@ -682,7 +682,7 @@
 
     // --- headlines
     var sec = section("The short version",
-      "The three or four things worth saying out loud.");
+      "Worst first. Every finding is here, nothing is cut for length.");
     (r.headlines || []).forEach(function (h) {
       sec.appendChild(el("div", { class: "headline " + h.kind, text: h.text }));
     });
