@@ -204,6 +204,50 @@ class TestUnreadable(unittest.TestCase):
         u = gap.analyze(self.DOCS, now=NOW)["unreadable"]
         self.assertEqual(u["share"], 60.0)
 
+    def test_unreadable_grouped_by_folder_with_count_and_share(self):
+        docs = [
+            doc("Scans/scan1.pdf", status="unreadable", reason="no text inside — this is a scan"),
+            doc("Scans/scan2.pdf", status="unreadable", reason="no text inside — this is a scan"),
+            doc("Locked/locked.pdf", status="unreadable", reason="the PDF is locked with a password"),
+            doc("good.txt", LOREM),
+        ]
+        u = gap.analyze(docs, now=NOW)["unreadable"]
+        self.assertEqual(u["count"], 3)
+        self.assertEqual(len(u["by_folder"]), 2)
+        # Should be ordered by count descending
+        self.assertEqual(u["by_folder"][0]["folder"], "Scans")
+        self.assertEqual(u["by_folder"][0]["count"], 2)
+        self.assertEqual(u["by_folder"][0]["share"], 66.7)
+        self.assertEqual(u["by_folder"][1]["folder"], "Locked")
+        self.assertEqual(u["by_folder"][1]["count"], 1)
+        self.assertEqual(u["by_folder"][1]["share"], 33.3)
+
+    def test_by_folder_includes_byte_totals_and_examples(self):
+        docs = [
+            doc("Scans/scan1.pdf", status="unreadable", reason="no text inside — this is a scan", size=1000),
+            doc("Scans/scan2.pdf", status="unreadable", reason="no text inside — this is a scan", size=2000),
+            doc("Locked/locked.pdf", status="unreadable", reason="the PDF is locked with a password", size=500),
+        ]
+        u = gap.analyze(docs, now=NOW)["unreadable"]
+        scans = u["by_folder"][0]
+        self.assertEqual(scans["bytes"], 3000)
+        self.assertEqual(len(scans["examples"]), 2)
+        locked = u["by_folder"][1]
+        self.assertEqual(locked["bytes"], 500)
+        self.assertEqual(len(locked["examples"]), 1)
+
+    def test_unreadable_with_empty_folder_field(self):
+        docs = [
+            doc("scan.pdf", status="unreadable", reason="no text inside — this is a scan"),
+            doc("Scans/scan2.pdf", status="unreadable", reason="no text inside — this is a scan"),
+        ]
+        u = gap.analyze(docs, now=NOW)["unreadable"]
+        self.assertEqual(len(u["by_folder"]), 2)
+        # One should be "(top level)" for the file with no folder
+        folders = [row["folder"] for row in u["by_folder"]]
+        self.assertIn("(top level)", folders)
+        self.assertIn("Scans", folders)
+
 
 class TestCoverage(unittest.TestCase):
     CHECK = [
@@ -470,6 +514,75 @@ class TestWholeReport(unittest.TestCase):
         md = gap.report_markdown("Client", "/tmp", r)
         for comp in r["score"]["components"]:
             self.assertIn(comp["how"], md)
+
+
+class TestHeadlineSeverity(unittest.TestCase):
+    """`_headlines()` used to walk a fixed if-chain and cut it off at five —
+    whichever finding sat sixth lost, regardless of how bad it was. Now every
+    finding is scored, sorted worst-first, and kept."""
+
+    def _six_check_docs(self):
+        # 18 files crammed into one folder — a severe (>50%) concentration
+        # finding that used to sit sixth in the old if-chain and get cut.
+        docs = [doc(f"Archive/file{i}.txt",
+                    LOREM + f" distincttag{i} uniqueword{i}",
+                    mtime=NOW - 4 * YEAR)
+                for i in range(18)]
+        docs += [doc("Current/one.txt", LOREM + " freshtermone"),
+                 doc("Current/two.txt", LOREM + " freshtermtwo"),
+                 # exact duplicates
+                 doc("Archive/dup1.txt", "Duplicate content here. " + LOREM),
+                 doc("Archive/dup2.txt", "Duplicate content here. " + LOREM),
+                 # unreadable
+                 doc("scan.pdf", status="unreadable", reason="this is a scan"),
+                 doc("scan2.pdf", status="unreadable", reason="this is a scan")]
+        return docs
+
+    def test_all_findings_are_kept_and_severity_sorted(self):
+        docs = self._six_check_docs()
+        r = gap.analyze(docs, now=NOW)
+        # Every check trips: unreadable, duplicates, stale, coverage, a
+        # >=50% concentration finding, and orphans — six, not counting partial.
+        self.assertTrue(r["unreadable"]["count"])
+        self.assertTrue(r["duplicates"]["wasted_copies"])
+        self.assertTrue(r["stale"]["over_3y"])
+        self.assertTrue(r["coverage"]["missing"])
+        self.assertGreaterEqual(r["concentration"]["top_folder_share"], 50)
+        self.assertTrue(r["orphans"]["unreferenced_count"])
+
+        headlines = r["headlines"]
+        self.assertGreaterEqual(len(headlines), 6, "nothing may be cut for length")
+        for h in headlines:
+            self.assertIn("severity", h)
+            self.assertIn("severity_how", h)
+
+        concentration = next(h for h in headlines if "Archive" in h["text"])
+        self.assertIn(concentration, headlines)
+        idx = headlines.index(concentration)
+        lower = [h for h in headlines if h["severity"] < concentration["severity"]]
+        self.assertTrue(lower, "the fixture must produce at least one lower-severity finding")
+        # The concentration finding must outrank at least one lower-severity
+        # finding it would previously have been discarded in favour of.
+        self.assertTrue(any(headlines.index(h) > idx for h in lower))
+
+        # Sorted worst-first (severity only decides among non-partial findings).
+        severities = [h["severity"] for h in headlines]
+        self.assertEqual(severities, sorted(severities, reverse=True))
+
+    def test_partial_sorts_first_even_with_a_lower_raw_severity(self):
+        docs = self._six_check_docs()
+        r = gap.analyze(docs, now=NOW, partial=True)
+        headlines = r["headlines"]
+        self.assertTrue(headlines)
+        first = headlines[0]
+        self.assertTrue(first["text"].lower().startswith("the read was stopped"))
+        others = headlines[1:]
+        self.assertTrue(others, "the fixture must trip other findings to make this a real test")
+        # `partial`'s own severity is lower than every other finding here —
+        # it still comes first because it is pinned, not because it scored
+        # highest. If pinning were ever dropped in favour of a plain sort,
+        # this is the assertion that would catch it.
+        self.assertTrue(all(first["severity"] < h["severity"] for h in others))
 
 
 # ---------------------------------------------------------------- adversarial

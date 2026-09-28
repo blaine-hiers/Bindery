@@ -1,13 +1,23 @@
 # Bindery
 
-Point it at a folder of documents. It reads them, indexes every word, and gives
-you two things: a search box that finds anything in the pile in well under a
-second, and a report on what is wrong with the pile — what is duplicated, what
-contradicts something else, what nobody has touched in four years, and what is
-sitting there with no way in.
+Point it at a folder of documents and get sub-second full-text search plus a
+report on what is wrong with the pile.
 
-No dependencies. No installer. No network. `py delivery/bindery/app.py` opens a
-browser and it runs on the standard library, on a folder on your own disk.
+[![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org/)
+[![Dependencies: standard library only](https://img.shields.io/badge/dependencies-standard%20library%20only-brightgreen)](delivery/bindery)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![CI](https://github.com/blaine-hiers/Bindery/actions/workflows/ci.yml/badge.svg)](https://github.com/blaine-hiers/Bindery/actions/workflows/ci.yml)
+
+It reads every file, indexes every word, and gives you two things: a search
+box that finds anything in the pile in well under a second, and a report on
+what is wrong with the pile — what is duplicated, what nobody has touched in
+years, what nothing references, what nobody can open, and what a business that
+size should have written down and does not.
+
+No dependencies. No installer. No network. `py delivery/bindery/app.py` opens
+a browser and it runs on the standard library, on a folder on your own disk.
+
+## Quickstart
 
 ```
 py delivery/bindery/app.py        # opens in your browser
@@ -15,6 +25,41 @@ py run_all_tests.py               # 247 tests
 ```
 
 Windows: double-click `run.cmd`.
+
+| Flag / variable | Where | What it does |
+|---|---|---|
+| `-v` | CLI flag, e.g. `py delivery/bindery/app.py -v` or `run.cmd -v` | Verbose: prints what the server is doing |
+| `BINDERY_DATA` | Environment variable | Overrides where the sqlite data lives. Defaults to `data/` beside the app; tests point it somewhere temporary |
+
+## How it works
+
+```mermaid
+flowchart TD
+    F["Folder of documents"] --> I["Ingest<br/>(ingest.py: walk_files, extract_file)"]
+    I --> IDX["Index<br/>(index.py: SearchIndex, BM25 ranking, sqlite)"]
+    IDX --> S["Search box<br/>(sub-second full-text search)"]
+    IDX --> A["Analyze<br/>(analyze.py: the gap report)"]
+    A --> D1["Files nobody can open<br/>(unreadable)"]
+    A --> D2["Copies that disagree<br/>(exact and near-duplicates)"]
+    A --> D3["Documents nobody has touched<br/>(stale)"]
+    A --> D4["Files nothing else points at<br/>(orphans)"]
+    A --> D5["What is missing<br/>(checklist coverage)"]
+    A --> D6["How concentrated it is<br/>(one folder, format, or author)"]
+    A --> SC["Readiness score<br/>(0-100, five weighted measurements)"]
+
+    classDef stage fill:#e3ecfb,stroke:#3b5bab,stroke-width:1.5px,color:#1a1a2e;
+    classDef output fill:#e3f6e8,stroke:#2f7d4f,stroke-width:1.5px,color:#1a1a2e;
+    classDef finding fill:#fdf1dc,stroke:#b8860b,stroke-width:1.5px,color:#1a1a2e;
+
+    class F,I,IDX stage
+    class S,A output
+    class D1,D2,D3,D4,D5,D6,SC finding
+```
+
+A folder goes in once, through **ingest** (`ingest.py`) and **index**
+(`index.py`). Everything after that reads from the index, not the folder, and
+splits into the two outputs the tool exists for: the **search box**, and
+**analyze** (`analyze.py`), the gap report.
 
 ## What it actually does
 
@@ -32,14 +77,14 @@ can see why something matched before you open it.
 **The gap report.** This is the part that is worth something. Given a pile of
 documents it will tell you:
 
-- **Duplicates and near-duplicates** — the same procedure saved four times with
-  three different dates on it.
-- **Contradictions** — two documents that state a different value for the same
-  thing.
-- **Stale** — last touched years ago, still being handed to new staff.
-- **Orphans** — nothing references it and it references nothing.
-- **What is missing** — measured against a checklist you can edit, because what
-  a business ought to have written down depends on the business.
+| Finding | What it means |
+|---|---|
+| **Copies that disagree** | Exact and near-duplicate documents — the same procedure saved four times with three different dates on it. "Near" means most of the five-word runs in two files are the same. |
+| **Documents nobody has touched** | Stale, bucketed by age: under a year, one to three years, three to five, over five. |
+| **Files nothing else points at** | Orphans — nothing references it and it references nothing (by name match). |
+| **Files nobody can open** | Unreadable — locked, damaged, a scan, or an old format — listed with the reason, never silently dropped. |
+| **What is missing** | Measured against a checklist you can edit, because what a business ought to have written down depends on the business. |
+| **How concentrated it is** | How much sits in one folder, one file type, or one person's name — a people risk, not a filing risk. |
 
 Every finding names the files it came from. No finding is reduced to a single
 number. **The readiness score** weighs five measurements — readable (25),
