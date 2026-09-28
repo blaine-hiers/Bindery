@@ -409,6 +409,18 @@ class TestPerClientSettings(unittest.TestCase):
             total = sum(weight for _, _, weight in resolved)
             self.assertEqual(total, 100.0, f"{weights} resolved to {resolved} summing to {total}")
 
+    def test_score_out_of_is_exactly_one_hundred_through_analyze(self):
+        """The resolved weights summing to 100 isn't enough: `analyze()` adds
+        them with a plain running `+=`, which is not the compensated `sum()`
+        the test above uses, and 1:7:1:3:2 used to come out of it as
+        99.99999999999999 -- printed as-is in the report."""
+        weights = {"readable": 1, "current": 7, "unique": 1, "covered": 3, "spread": 2}
+        r = gap.analyze(self.DOCS, now=NOW, score_weights=weights)
+        self.assertEqual(r["score"]["unmeasured"], [])
+        self.assertEqual(r["score"]["out_of"], 100.0)
+        md = gap.report_markdown("Client", "/tmp", r)
+        self.assertNotIn("99.9999", md)
+
     def test_a_non_finite_weight_falls_back_to_that_keys_default(self):
         """`analyze()` is a public function -- a caller that skips the API's
         own validation (a test, a script, a future code path) must never be

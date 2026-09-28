@@ -693,6 +693,10 @@ def analyze(docs, *, checklist=None, now=None, near_threshold: float = DEFAULT_N
         components.append({"key": key, "label": label, "weight": weight,
                            "raw_pct": pct, "points": points, "measured": True,
                            "how": how[key]})
+    # Each weight is a tenth, but tenths aren't exact in binary float, so a
+    # plain running sum can land on 99.99999999999999 -- round it like every
+    # other weight and points value.
+    out_of = round(out_of, 1)
     unmeasured = [c["label"] for c in components if not c["measured"]]
     note = ("Add the points column and you get the score. Nothing is hidden and "
             "nothing is weighted behind your back.")
