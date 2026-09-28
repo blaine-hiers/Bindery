@@ -412,6 +412,61 @@ class TestRealWorldGarbage(unittest.TestCase):
         self.assertFalse(text)
         self.assertIn("scan", (reason or "").lower())
 
+    def test_a_truncated_pdf_that_still_yields_a_few_garbage_characters(self):
+        """A compressed PDF cut mid-stream can decode to a handful of leftover
+        characters instead of nothing at all. That must still be reported as
+        cut short, not misread as a font/decoding problem (issue #4)."""
+        pdf = fixtures.make_pdf(
+            ["Quotation for the Johnson project", "nine thousand dollars",
+             "filler text so the content stream is long enough to cut mid-way"],
+            compress=True)
+        saw_partial_garbage = False
+        for pct in range(10, 95, 2):
+            cut = pdf[: int(len(pdf) * pct / 100)]
+            if ingest._looks_complete(cut):
+                continue
+            text, reason = ingest.extract_pdf(cut)
+            if text:
+                continue
+            self.assertIn("cut short", (reason or "").lower())
+            self.assertNotIn("scan", (reason or "").lower())
+            self.assertNotIn("font", (reason or "").lower())
+            saw_partial_garbage = True
+        self.assertTrue(saw_partial_garbage,
+                         "no truncation point in this fixture exercised the bug; "
+                         "widen the fraction range or fixture size")
+
+    def test_a_genuine_undecodable_font_still_reports_the_decoding_reason(self):
+        """A complete PDF that uses a cut-down font with no /ToUnicode table at
+        all is the genuine version of 'could not be decoded' — fixing the
+        cut-short misreport (issue #4) must not turn this into a false
+        'cut short' instead."""
+        words = ["Condenser", "fan", "motor", "replacement"]
+        run = " ".join(words)
+        codes = {ch: i + 1 for i, ch in enumerate(sorted(set(run)))}
+        hexs = "".join(f"{codes[c]:04X}" for c in run)
+        content = f"BT /F1 12 Tf 72 700 Td <{hexs}> Tj ET".encode("latin-1")
+        objects = [
+            b"<< /Type /Catalog /Pages 2 0 R >>",
+            b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] "
+            b"/Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>",
+            b"<< /Length " + str(len(content)).encode() + b" >>\nstream\n"
+            + content + b"\nendstream",
+            # No /ToUnicode here — that is the point of the fixture.
+            b"<< /Type /Font /Subtype /Type0 /BaseFont /AAAAAA+Calibri "
+            b"/Encoding /Identity-H >>",
+        ]
+        out = bytearray(b"%PDF-1.5\n")
+        for n, obj in enumerate(objects, 1):
+            out += str(n).encode() + b" 0 obj\n" + obj + b"\nendobj\n"
+        out += b"trailer\n<< /Size 6 /Root 1 0 R >>\n%%EOF\n"
+
+        text, reason = ingest.extract_pdf(bytes(out))
+        self.assertFalse(text)
+        self.assertIn("decoded", (reason or "").lower())
+        self.assertNotIn("cut short", (reason or "").lower())
+
     def test_awkward_filenames(self):
         names = ["100% margin.txt", "quote #4471.txt", "‮reversed.txt",
                  "emoji \U0001F600 file.txt", "sp  ace.txt", "dot.in.name.txt"]
